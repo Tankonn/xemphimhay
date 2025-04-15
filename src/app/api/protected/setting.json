@@ -1,0 +1,10 @@
+{
+    "mongodb":{
+       "username": "sa",
+       "password": "sa",
+       "database":"movie"
+    },
+    "jwt": {
+      "secret": "goK!pusp6ThEdURUtRenOwUhAsWUCLheBazl!uJLPlS8EbreWLdrupIwabRAsiBu"
+   }
+ }
