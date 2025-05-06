@@ -50,9 +50,10 @@ export default function Login() {
         // Đăng nhập thành công
         localStorage.setItem("token", data.access_token);
         alert("login susccess!");
-        //router.push(data.redirectUrl);
+        // message.success('Login successful!');
+        router.push('/home');
       } else {
-        message.error('Username or password is incorrect!');
+        alert('Username or password is incorrect!');
       }
     } catch (err) {
       console.error("Error:", err);
