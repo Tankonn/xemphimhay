@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Form, Input, message } from 'antd';
+import { Form, Input} from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import BaseButton from "@/components/BaseButton";
 
@@ -12,13 +12,19 @@ export default function Register() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!username || !email || !password) {
-      message.warning("Vui lòng điền đầy đủ thông tin.");
+    if (!username || !email || !password || !confirmPassword) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      alert("Passwords do not match!");
       return;
     }
 
@@ -28,20 +34,30 @@ export default function Register() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ username, email, password })
+        body: JSON.stringify({
+          username: username.trim(),
+          email: email.trim(),
+          password: password,
+          role: "user"
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Registration failed');
+      }
 
       const data = await response.json();
 
       if (data && data._id) {
-        alert("register success!");
+        alert("Registration successful!");
         router.push("/login");
       } else {
-        message.error("register failed!");
+        alert("Registration failed!");
       }
     } catch (err) {
       console.error("Error:", err);
-      message.error("failed to connect server!");
+      alert(err instanceof Error ? err.message : "Failed to connect to server!");
     }
   };
 
@@ -98,6 +114,16 @@ export default function Register() {
                     prefix={<LockOutlined />}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="bg-gray-700 text-white border-gray-600"
+                  />
+                </div>
+                <div className="mb-4">
+                  <Input.Password
+                    size="large"
+                    placeholder="Confirm Password"
+                    prefix={<LockOutlined />}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className="bg-gray-700 text-white border-gray-600"
                   />
                 </div>

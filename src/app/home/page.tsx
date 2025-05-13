@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu } from 'antd';
-import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu, notification } from 'antd';
+import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined, StarOutlined, HeartOutlined, HeartFilled } from '@ant-design/icons';
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
 
@@ -22,6 +22,7 @@ interface Film {
   description?: string;
   episode?: string;
   views?: number;
+  rating?: number;
 }
 
 interface HeroItem {
@@ -54,6 +55,7 @@ const Home: NextPage = () => {
   const [heroFilms, setHeroFilms] = useState<HeroItem[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
+  const [favorites, setFavorites] = useState<string[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -70,6 +72,9 @@ const Home: NextPage = () => {
         // Try to get username from API if you have an endpoint
         fetchUserProfile(token);
       }
+      
+      // Fetch user favorites - let the API handle user identification via token
+      fetchUserFavorites(token);
     }
 
     // Fetch films from API
@@ -107,12 +112,12 @@ const Home: NextPage = () => {
 
         // Use mock data as fallback if API fails
         const mockFilms: Film[] = [
-          { _id: '1', name: 'Fate / Stay Night: Unlimited Blade Works', image: 'details-pic.jpg', category: 'Fantasy' },
-          { _id: '2', name: 'Attack on Titan', image: 'trending-1.jpg', category: 'Action' },
-          { _id: '3', name: 'One Punch Man', image: 'trending-2.jpg', category: 'Comedy' },
-          { _id: '4', name: 'Demon Slayer', image: 'trending-3.jpg', category: 'Adventure' },
-          { _id: '5', name: 'My Hero Academia', image: 'trending-4.jpg', category: 'Action' },
-          { _id: '6', name: 'Jujutsu Kaisen', image: 'trending-5.jpg', category: 'Action' },
+          { _id: '1', name: 'Fate / Stay Night: Unlimited Blade Works', image: 'details-pic.jpg', category: 'Fantasy', views: 54200, rating: 4.8 },
+          { _id: '2', name: 'Attack on Titan', image: 'trending-1.jpg', category: 'Action', views: 78100, rating: 4.9 },
+          { _id: '3', name: 'One Punch Man', image: 'trending-2.jpg', category: 'Comedy', views: 63500, rating: 4.7 },
+          { _id: '4', name: 'Demon Slayer', image: 'trending-3.jpg', category: 'Adventure', views: 89300, rating: 4.9 },
+          { _id: '5', name: 'My Hero Academia', image: 'trending-4.jpg', category: 'Action', views: 67800, rating: 4.6 },
+          { _id: '6', name: 'Jujutsu Kaisen', image: 'trending-5.jpg', category: 'Action', views: 72400, rating: 4.8 },
         ];
 
         setFilms(mockFilms);
@@ -162,6 +167,10 @@ const Home: NextPage = () => {
         setUsername(data.username || 'User');
         // Optionally store username in localStorage
         localStorage.setItem('username', data.username);
+        // Store user ID in localStorage for later use
+        if (data._id) {
+          localStorage.setItem('userId', data._id);
+        }
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -180,6 +189,129 @@ const Home: NextPage = () => {
     setUsername('');
     // You can redirect to login page if needed
     // router.push('/login');
+  };
+
+  // Add function to toggle favorite status
+  const toggleFavorite = async (e: React.MouseEvent, filmId: string) => {
+    e.preventDefault(); // Prevent the Link navigation
+    e.stopPropagation(); // Stop event propagation
+    
+    const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token) {
+      notification.info({
+        message: 'Login Required',
+        description: 'Please log in to add favorites.',
+        placement: 'topRight'
+      });
+      return;
+    }
+    
+    try {
+      const isFavorite = favorites.includes(filmId);
+      
+      if (isFavorite) {
+        // Remove from favorites
+        const response = await fetch(`http://localhost:2000/favorites/${filmId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          // Update local state
+          setFavorites(favorites.filter(id => id !== filmId));
+          notification.success({
+            message: 'Success',
+            description: 'Removed from favorites',
+            placement: 'topRight',
+            duration: 2
+          });
+        } else {
+          throw new Error('Failed to remove from favorites');
+        }
+      } else {
+        // Add to favorites
+        const response = await fetch('http://localhost:2000/favorites', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            userId: userId, 
+            movieId: filmId 
+          })
+        });
+        
+        if (response.ok) {
+          // Update local state
+          setFavorites([...favorites, filmId]);
+          notification.success({
+            message: 'Success',
+            description: 'Added to favorites',
+            placement: 'topRight',
+            duration: 2
+          });
+        } else {
+          throw new Error('Failed to add to favorites');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      notification.error({
+        message: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update favorites',
+        placement: 'topRight'
+      });
+    }
+  };
+
+  // Function to fetch user favorites
+  const fetchUserFavorites = async (token: string) => {
+    try {
+      // Get userId from localStorage
+      const userId = localStorage.getItem('userId');
+      
+      if (!userId) {
+        console.log('No user ID available, attempting to fetch from profile first');
+        await fetchUserProfile(token);
+        // Try again after fetching profile
+        const newUserId = localStorage.getItem('userId');
+        if (!newUserId) {
+          console.log('Still no user ID available, cannot fetch favorites');
+          return;
+        }
+      }
+
+      const currentUserId = localStorage.getItem('userId');
+      console.log('Fetching favorites for user ID:', currentUserId);
+      
+      const response = await fetch(`http://localhost:2000/favorites/user/${currentUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch favorites: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Favorites data:', data);
+      
+      // Extract movie IDs from favorites data
+      const favoriteIds = data.map((fav: any) => fav.movieId || fav._id);
+      setFavorites(favoriteIds);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      // If API fails, initialize with empty array
+      setFavorites([]);
+    }
   };
 
   // Mocked data for other sections - in a real app, these would also come from the API
@@ -288,11 +420,11 @@ const Home: NextPage = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <Link href="/" className="text-red-500 font-bold text-2xl">
+              <Link href="/home" className="text-red-500 font-bold text-2xl">
                 ANIME
               </Link>
               <nav className="hidden md:flex ml-8">
-                <Link href="/" className="text-white hover:text-red-500 px-4 py-2">
+                <Link href="/home" className="text-white hover:text-red-500 px-4 py-2">
                   Home
                 </Link>
                 <Link href="/categories" className="text-gray-400 hover:text-red-500 px-4 py-2">
@@ -312,14 +444,16 @@ const Home: NextPage = () => {
                   <Dropdown overlay={userMenu} placement="bottomRight">
                     <Button
                       type="text"
-                      className="text-white hover:text-white flex items-center"
+                      style={{ color: 'white' }}
+                      className="flex items-center"
                     >
                       <UserOutlined className="mr-1" /> {username || 'User'}
                     </Button>
                   </Dropdown>
                   <Button
                     type="primary"
-                    className="ml-4 bg-red-500 hover:bg-red-600 border-none flex items-center"
+                    className="ml-4 flex items-center"
+                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
                     onClick={handleLogout}
                     icon={<LogoutOutlined />}
                   >
@@ -330,13 +464,15 @@ const Home: NextPage = () => {
                 <>
                   <Button
                     type="primary"
-                    className="ml-4 bg-red-500 hover:bg-red-600 border-none"
+                    className="ml-4"
+                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
                     onClick={() => router.push('/login')}>
                     Sign In
                   </Button>
                   <Button
                     type="primary"
-                    className="ml-4 bg-red-500 hover:bg-red-600 border-none"
+                    className="ml-4"
+                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
                     onClick={() => router.push('/register')}
                   >
                     Sign Up
@@ -397,7 +533,7 @@ const Home: NextPage = () => {
               <Col lg={16} md={24}>
                 <div className="mb-12">
                   <div className="flex justify-between items-center mb-6">
-                    <Title level={4} className="text-white m-0">Popular Anime</Title>
+                    <Title level={4} style={{ color: 'white', margin: 0 }}>Popular Anime</Title>
                     <Link href="/all-anime" className="text-red-500 hover:text-red-600 flex items-center">
                       View All <RightOutlined className="ml-1" />
                     </Link>
@@ -414,7 +550,7 @@ const Home: NextPage = () => {
                         <Col lg={8} md={12} sm={12} xs={24} key={index}>
                           <Card
                             loading={true}
-                            className="bg-gray-800 border-gray-700 h-64"
+                            style={{ backgroundColor: '#1F2937', borderColor: '#374151', height: '16rem' }}
                           />
                         </Col>
                       ))
@@ -425,17 +561,72 @@ const Home: NextPage = () => {
                           <Link href={`/detail?id=${film._id}`}>
                             <Card
                               hoverable
-                              className="bg-gray-800 border-gray-700 overflow-hidden anime-card"
+                              className="overflow-hidden anime-card"
+                              style={{ backgroundColor: '#1F2937', borderColor: '#374151' }}
                               cover={
-                                <div
-                                  className="h-48 bg-cover bg-center"
-                                  style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
-                                ></div>
+                                <div className="relative">
+                                  <div
+                                    className="h-48 bg-cover bg-center"
+                                    style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
+                                  ></div>
+                                  {/* Category badge */}
+                                  {film.category && (
+                                    <div 
+                                      className="category-badge"
+                                    >
+                                      {film.category}
+                                    </div>
+                                  )}
+                                  {/* Episode badge - if available */}
+                                  {film.episode && (
+                                    <div className="episode-badge">
+                                      <span>{film.episode}</span>
+                                    </div>
+                                  )}
+                                  {/* Views counter */}
+                                  {film.views && (
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> 
+                                      <span>{film.views.toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                  {/* Heart icon on the left - now matches profile page style */}
+                                  <div 
+                                    className="absolute bottom-2 left-2 favorite-btn"
+                                    onClick={(e) => toggleFavorite(e, film._id)}
+                                  >
+                                    <Button
+                                      type="primary"
+                                      danger={favorites.includes(film._id)}
+                                      icon={favorites.includes(film._id) ? <HeartFilled /> : <HeartOutlined />}
+                                      className="rounded-full heart-btn"
+                                      style={{
+                                        backgroundColor: favorites.includes(film._id) ? '#EF4444' : 'rgba(0, 0, 0, 0.7)',
+                                        borderColor: favorites.includes(film._id) ? '#EF4444' : 'transparent'
+                                      }}
+                                    />
+                                  </div>
+                                  {/* Rating badge on the right */}
+                                  <div className="rating-badge">
+                                    <StarOutlined className="star-icon" />
+                                    <span>{film.rating?.toFixed(1) || '4.5'}</span>
+                                  </div>
+                                </div>
                               }
                             >
                               <Card.Meta
-                                title={<span className="text-red-500">{film.name}</span>}
+                                title={<span style={{ color: '#EF4444' }}>{film.name}</span>}
                                 className="text-center"
+                                description={
+                                  <div className="flex justify-between items-center mt-1" style={{ color: '#9CA3AF' }}>
+                                    <span>{film.category || 'Action'}</span>
+                                    {film.views && (
+                                      <span className="flex items-center">
+                                        <EyeOutlined style={{ marginRight: '4px' }} /> {film.views.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                }
                               />
                             </Card>
                           </Link>
@@ -447,25 +638,25 @@ const Home: NextPage = () => {
               </Col>
 
               <Col lg={8} md={24}>
-                <div className="bg-gray-800 p-4 mb-8 rounded">
-                  <Title level={5} className="text-white mb-4">Top Views</Title>
+                <div className="p-4 rounded" style={{ backgroundColor: '#1F2937' }}>
+                  <Title level={5} style={{ color: 'white', marginBottom: '1rem' }}>Top Views</Title>
                   <Tabs defaultActiveKey="day" className="text-gray-300">
                     <TabPane tab="Day" key="day">
                       <List
                         itemLayout="horizontal"
                         dataSource={topViewItems.filter(item => item.categories.includes('day'))}
                         renderItem={item => (
-                          <List.Item className="border-b border-gray-700 py-2">
+                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
                             <div className="relative w-full">
                               <div
                                 className="h-32 w-full bg-cover bg-center rounded"
                                 style={{ backgroundImage: `url(${item.image})` }}
                               >
-                                <div className="absolute top-2 left-2 bg-black bg-opacity-70 px-2 py-1 text-xs">
+                                <div className="episode-badge">
                                   {item.episode}
                                 </div>
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-70 px-2 py-1 text-xs flex items-center">
-                                  <EyeOutlined className="mr-1" /> {item.views}
+                                <div className="views-badge">
+                                  <EyeOutlined className="view-icon" /> {item.views}
                                 </div>
                               </div>
                               <h5 className="text-white mt-2 hover:text-red-500">
@@ -476,23 +667,22 @@ const Home: NextPage = () => {
                         )}
                       />
                     </TabPane>
-                    {/* Other tab panes remain the same */}
                     <TabPane tab="Week" key="week">
                       <List
                         itemLayout="horizontal"
                         dataSource={topViewItems.filter(item => item.categories.includes('week'))}
                         renderItem={item => (
-                          <List.Item className="border-b border-gray-700 py-2">
+                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
                             <div className="relative w-full">
                               <div
                                 className="h-32 w-full bg-cover bg-center rounded"
                                 style={{ backgroundImage: `url(${item.image})` }}
                               >
-                                <div className="absolute top-2 left-2 bg-black bg-opacity-70 px-2 py-1 text-xs">
+                                <div className="episode-badge">
                                   {item.episode}
                                 </div>
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-70 px-2 py-1 text-xs flex items-center">
-                                  <EyeOutlined className="mr-1" /> {item.views}
+                                <div className="views-badge">
+                                  <EyeOutlined className="view-icon" /> {item.views}
                                 </div>
                               </div>
                               <h5 className="text-white mt-2 hover:text-red-500">
@@ -508,17 +698,17 @@ const Home: NextPage = () => {
                         itemLayout="horizontal"
                         dataSource={topViewItems.filter(item => item.categories.includes('month'))}
                         renderItem={item => (
-                          <List.Item className="border-b border-gray-700 py-2">
+                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
                             <div className="relative w-full">
                               <div
                                 className="h-32 w-full bg-cover bg-center rounded"
                                 style={{ backgroundImage: `url(${item.image})` }}
                               >
-                                <div className="absolute top-2 left-2 bg-black bg-opacity-70 px-2 py-1 text-xs">
+                                <div className="episode-badge">
                                   {item.episode}
                                 </div>
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-70 px-2 py-1 text-xs flex items-center">
-                                  <EyeOutlined className="mr-1" /> {item.views}
+                                <div className="views-badge">
+                                  <EyeOutlined className="view-icon" /> {item.views}
                                 </div>
                               </div>
                               <h5 className="text-white mt-2 hover:text-red-500">
@@ -534,17 +724,17 @@ const Home: NextPage = () => {
                         itemLayout="horizontal"
                         dataSource={topViewItems.filter(item => item.categories.includes('years'))}
                         renderItem={item => (
-                          <List.Item className="border-b border-gray-700 py-2">
+                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
                             <div className="relative w-full">
                               <div
                                 className="h-32 w-full bg-cover bg-center rounded"
                                 style={{ backgroundImage: `url(${item.image})` }}
                               >
-                                <div className="absolute top-2 left-2 bg-black bg-opacity-70 px-2 py-1 text-xs">
+                                <div className="episode-badge">
                                   {item.episode}
                                 </div>
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-70 px-2 py-1 text-xs flex items-center">
-                                  <EyeOutlined className="mr-1" /> {item.views}
+                                <div className="views-badge">
+                                  <EyeOutlined className="view-icon" /> {item.views}
                                 </div>
                               </div>
                               <h5 className="text-white mt-2 hover:text-red-500">
@@ -558,13 +748,13 @@ const Home: NextPage = () => {
                   </Tabs>
                 </div>
 
-                <div className="bg-gray-800 p-4 rounded">
-                  <Title level={5} className="text-white mb-4">New Comments</Title>
+                <div className="p-4 rounded mt-8" style={{ backgroundColor: '#1F2937' }}>
+                  <Title level={5} style={{ color: 'white', marginBottom: '1rem' }}>New Comments</Title>
                   <List
                     itemLayout="horizontal"
                     dataSource={commentItems}
                     renderItem={item => (
-                      <List.Item className="border-b border-gray-700 py-3">
+                      <List.Item className="py-3" style={{ borderBottom: '1px solid #374151' }}>
                         <List.Item.Meta
                           avatar={
                             <div className="w-16 h-16 overflow-hidden rounded">
@@ -658,7 +848,8 @@ const Home: NextPage = () => {
                 <input
                   type="email"
                   placeholder="Email"
-                  className="px-4 py-2 bg-gray-700 text-white rounded-l focus:outline-none w-full"
+                  className="px-4 py-2 rounded-l focus:outline-none w-full"
+                  style={{ backgroundColor: '#374151', color: 'white' }}
                 />
                 <button
                   type="submit"
@@ -669,8 +860,8 @@ const Home: NextPage = () => {
               </form>
             </div>
           </div>
-          <div className="border-t border-gray-700 mt-8 pt-8 text-center">
-            <p>© 2025 Anime. All rights reserved.</p>
+          <div style={{ borderTop: '1px solid #374151', marginTop: '2rem', paddingTop: '2rem' }} className="text-center">
+            <p>&copy; {new Date().getFullYear()} Anime. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -694,6 +885,137 @@ const Home: NextPage = () => {
         }
         .ant-list-item {
           border-color: #374151;
+        }
+        .ant-card-meta-title {
+          color: #F3F4F6 !important;
+        }
+        .ant-dropdown-menu {
+          background-color: #1F2937;
+          border: 1px solid #374151;
+        }
+        .ant-dropdown-menu-item {
+          color: #F3F4F6;
+        }
+        .ant-dropdown-menu-item:hover {
+          background-color: #374151;
+        }
+        .ant-spin-dot-item {
+          background-color: #EF4444;
+        }
+        .ant-card {
+          background-color: #1F2937 !important;
+          border-color: #374151 !important;
+        }
+        .ant-card-meta-description {
+          color: #9CA3AF !important;
+        }
+        
+        /* Badge styles */
+        .category-badge {
+          position: absolute;
+          top: 8px;
+          left: 8px;
+          background-color: rgba(0, 0, 0, 0.7);
+          color: #EF4444;
+          font-size: 0.75rem;
+          padding: 2px 8px;
+          border-radius: 4px;
+          z-index: 5;
+        }
+        
+        .episode-badge {
+          position: absolute;
+          top: 8px;
+          left: 8px;
+          background-color: rgba(0, 0, 0, 0.7);
+          color: white;
+          font-size: 0.75rem;
+          padding: 2px 8px;
+          border-radius: 4px;
+          z-index: 5;
+        }
+        
+        .views-badge {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          background-color: rgba(0, 0, 0, 0.7);
+          color: white;
+          font-size: 0.75rem;
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          z-index: 5;
+        }
+        
+        .views-badge .view-icon,
+        .rating-badge .star-icon {
+          margin-right: 4px;
+        }
+        
+        /* Rating styles */
+        .ant-rate {
+          color: #FBBF24;
+        }
+        .ant-rate-star:not(:last-child) {
+          margin-right: 4px;
+        }
+        .ant-rate-disabled .ant-rate-star {
+          cursor: default;
+        }
+        .ant-rate-star-first, .ant-rate-star-second {
+          color: #FBBF24;
+        }
+        .ant-rate-star-half .ant-rate-star-first, .ant-rate-star-full .ant-rate-star-second {
+          color: #FBBF24;
+        }
+        .rating-badge {
+          position: absolute;
+          bottom: 8px;
+          right: 8px;
+          background-color: rgba(0, 0, 0, 0.7);
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          z-index: 5;
+        }
+        .rating-badge .star-icon {
+          color: #FBBF24;
+        }
+        .rating-badge span {
+          color: #FBBF24;
+          font-weight: bold;
+        }
+        
+        /* Heart button styles */
+        .favorite-btn {
+          z-index: 10; /* Ensure it's above the card for clicking */
+        }
+        .favorite-btn .ant-btn {
+          min-width: 32px;
+          min-height: 32px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .favorite-btn .ant-btn:hover {
+          transform: scale(1.1);
+          transition: transform 0.2s ease;
+        }
+        .favorite-btn .anticon {
+          font-size: 16px;
+        }
+        .anime-card:hover .favorite-btn .ant-btn {
+          transform: scale(1.1);
+          transition: transform 0.2s ease;
+        }
+        .heart-btn {
+          width: 32px !important;
+          height: 32px !important;
+          padding: 0 !important;
+          display: flex !important;
+          justify-content: center !important;
+          align-items: center !important;
         }
       `}</style>
     </div>
