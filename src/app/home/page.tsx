@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu, notification } from 'antd';
-import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined, StarOutlined, HeartOutlined, HeartFilled } from '@ant-design/icons';
+import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu, notification, Modal } from 'antd';
+import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined, StarOutlined, HeartOutlined, HeartFilled, CheckCircleFilled } from '@ant-design/icons';
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
 
@@ -32,22 +32,6 @@ interface HeroItem {
   image: string;
 }
 
-interface TopViewItem {
-  title: string;
-  episode: string;
-  views: string;
-  image: string;
-  categories: string[];
-}
-
-interface CommentItem {
-  title: string;
-  status: string;
-  category: string;
-  views: string;
-  image: string;
-}
-
 const Home: NextPage = () => {
   const [films, setFilms] = useState<Film[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,6 +40,11 @@ const Home: NextPage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [favoriteModalVisible, setFavoriteModalVisible] = useState<boolean>(false);
+  const [favoriteModalData, setFavoriteModalData] = useState<{film: Film | null, action: 'add' | 'remove'}>({film: null, action: 'add'});
+  const [loginRequiredModalVisible, setLoginRequiredModalVisible] = useState<boolean>(false);
+  const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
+  const [topViewedFilms, setTopViewedFilms] = useState<Film[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -77,80 +66,11 @@ const Home: NextPage = () => {
       fetchUserFavorites(token);
     }
 
-    // Fetch films from API
-    const fetchFilms = async () => {
-      try {
-        setLoading(true);
-
-        // Replace with your actual API endpoint
-        const response = await fetch('http://localhost:2000/movies');
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Process the data
-        setFilms(data);
-
-        // Set hero films from the first 3 items with the most complete data
-        const heroData = data.slice(0, 3).map((film: Film) => ({
-          title: film.name,
-          category: film.category || 'Adventure',
-          description: film.description || 'Experience the adventure of a lifetime...',
-          image: film.image.startsWith('http')
-            ? film.image
-            : `/img/hero/hero-1.jpg` // Fallback image
-        }));
-
-        setHeroFilms(heroData);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching films:', err);
-        setError('Failed to load films. Please try again later.');
-
-        // Use mock data as fallback if API fails
-        const mockFilms: Film[] = [
-          { _id: '1', name: 'Fate / Stay Night: Unlimited Blade Works', image: 'details-pic.jpg', category: 'Fantasy', views: 54200, rating: 4.8 },
-          { _id: '2', name: 'Attack on Titan', image: 'trending-1.jpg', category: 'Action', views: 78100, rating: 4.9 },
-          { _id: '3', name: 'One Punch Man', image: 'trending-2.jpg', category: 'Comedy', views: 63500, rating: 4.7 },
-          { _id: '4', name: 'Demon Slayer', image: 'trending-3.jpg', category: 'Adventure', views: 89300, rating: 4.9 },
-          { _id: '5', name: 'My Hero Academia', image: 'trending-4.jpg', category: 'Action', views: 67800, rating: 4.6 },
-          { _id: '6', name: 'Jujutsu Kaisen', image: 'trending-5.jpg', category: 'Action', views: 72400, rating: 4.8 },
-        ];
-
-        setFilms(mockFilms);
-
-        // Set hero films from mock data
-        const mockHeroItems: HeroItem[] = [
-          {
-            title: 'Fate / Stay Night: Unlimited Blade Works',
-            category: 'Adventure',
-            description: 'After 30 days of travel across the world...',
-            image: '/img/hero/hero-1.jpg'
-          },
-          {
-            title: 'Demon Slayer: Kimetsu no Yaiba',
-            category: 'Action',
-            description: 'Tanjiro sets out to become a demon slayer to avenge his family...',
-            image: '/img/hero/hero-1.jpg'
-          },
-          {
-            title: 'Attack on Titan: Final Season',
-            category: 'Drama',
-            description: 'The war for Paradis zeroes in on Shiganshina...',
-            image: '/img/hero/hero-1.jpg'
-          }
-        ];
-
-        setHeroFilms(mockHeroItems);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    // Fetch regular films
     fetchFilms();
+    
+    // Fetch top viewed films
+    fetchTopViewedFilms();
   }, []);
 
   // Function to fetch user profile
@@ -191,7 +111,7 @@ const Home: NextPage = () => {
     // router.push('/login');
   };
 
-  // Add function to toggle favorite status
+  // Function to add a film to favorites
   const toggleFavorite = async (e: React.MouseEvent, filmId: string) => {
     e.preventDefault(); // Prevent the Link navigation
     e.stopPropagation(); // Stop event propagation
@@ -200,16 +120,41 @@ const Home: NextPage = () => {
     const userId = localStorage.getItem('userId');
     
     if (!token) {
-      notification.info({
-        message: 'Login Required',
-        description: 'Please log in to add favorites.',
-        placement: 'topRight'
-      });
+      // Find the film data to display in the login required modal
+      const film = films.find(f => f._id === filmId);
+      if (film) {
+        setSelectedFilm(film);
+        setLoginRequiredModalVisible(true);
+      } else {
+        notification.open({
+          message: 'Login Required',
+          description: 'Please log in to add favorites.',
+          placement: 'topRight'
+        });
+      }
       return;
     }
     
     try {
       const isFavorite = favorites.includes(filmId);
+      
+      // Find the film data to use in the notification
+      const film = films.find(f => f._id === filmId);
+      console.log('Film data for notification:', film);
+      
+      // Test notification to ensure it's visible
+      notification.open({
+        message: 'Notification Test',
+        description: 'Testing if notifications are visible',
+        placement: 'topRight',
+        duration: 3,
+        className: 'favorite-notification',
+        style: {
+          zIndex: 9999,
+          backgroundColor: '#f6ffed',
+          border: '1px solid #b7eb8f'
+        }
+      });
       
       if (isFavorite) {
         // Remove from favorites
@@ -224,12 +169,22 @@ const Home: NextPage = () => {
         if (response.ok) {
           // Update local state
           setFavorites(favorites.filter(id => id !== filmId));
-          notification.success({
-            message: 'Success',
-            description: 'Removed from favorites',
-            placement: 'topRight',
-            duration: 2
-          });
+          
+          if (film) {
+            // Use modal instead of notification
+            setFavoriteModalData({
+              film,
+              action: 'remove'
+            });
+            setFavoriteModalVisible(true);
+          } else {
+            notification.open({
+              message: 'Success',
+              description: 'Removed from favorites',
+              placement: 'topRight',
+              duration: 2
+            });
+          }
         } else {
           throw new Error('Failed to remove from favorites');
         }
@@ -250,19 +205,39 @@ const Home: NextPage = () => {
         if (response.ok) {
           // Update local state
           setFavorites([...favorites, filmId]);
-          notification.success({
-            message: 'Success',
-            description: 'Added to favorites',
-            placement: 'topRight',
-            duration: 2
-          });
+          
+          // Use modal instead of notification
+          if (film) {
+            setFavoriteModalData({
+              film,
+              action: 'add'
+            });
+            setFavoriteModalVisible(true);
+          } else {
+            notification.open({
+              message: 'Added to Favorites',
+              description: 'Anime was successfully added to your favorites list!',
+              placement: 'top',
+              duration: 6,
+              className: 'favorite-success-notification',
+              style: { 
+                backgroundColor: '#52c41a',
+                border: '1px solid #b7eb8f',
+                zIndex: 9999,
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '16px'
+              },
+              icon: <CheckCircleFilled style={{ color: 'white' }} />
+            });
+          }
         } else {
           throw new Error('Failed to add to favorites');
         }
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      notification.error({
+      notification.open({
         message: 'Error',
         description: error instanceof Error ? error.message : 'Failed to update favorites',
         placement: 'topRight'
@@ -314,78 +289,131 @@ const Home: NextPage = () => {
     }
   };
 
-  // Mocked data for other sections - in a real app, these would also come from the API
-  const topViewItems: TopViewItem[] = [
-    {
-      title: 'Boruto: Naruto next generations',
-      episode: '18 / ?',
-      views: '9141',
-      image: '/img/sidebar/tv-1.jpg',
-      categories: ['day', 'years']
-    },
-    {
-      title: 'The Seven Deadly Sins: Wrath of the Gods',
-      episode: '18 / ?',
-      views: '9141',
-      image: '/img/sidebar/tv-2.jpg',
-      categories: ['month', 'week']
-    },
-    {
-      title: 'Sword art online alicization war of underworld',
-      episode: '18 / ?',
-      views: '9141',
-      image: '/img/sidebar/tv-3.jpg',
-      categories: ['week', 'years']
-    },
-    {
-      title: 'Fate/stay night: Heaven\'s Feel I. presage flower',
-      episode: '18 / ?',
-      views: '9141',
-      image: '/img/sidebar/tv-4.jpg',
-      categories: ['years', 'month']
-    },
-    {
-      title: 'Fate stay night unlimited blade works',
-      episode: '18 / ?',
-      views: '9141',
-      image: '/img/sidebar/tv-5.jpg',
-      categories: ['day']
-    }
-  ];
+  // Function to fetch films from API
+  const fetchFilms = async () => {
+    try {
+      setLoading(true);
 
-  const commentItems: CommentItem[] = [
-    {
-      title: 'The Seven Deadly Sins: Wrath of the Gods',
-      status: 'Active',
-      category: 'Movie',
-      views: '19,141',
-      image: '/img/sidebar/comment-1.jpg'
-    },
-    {
-      title: 'Shirogane Tamashii hen Kouhan sen',
-      status: 'Active',
-      category: 'Movie',
-      views: '19,141',
-      image: '/img/sidebar/comment-2.jpg'
-    },
-    {
-      title: 'Kizumonogatari III: Reiket su-hen',
-      status: 'Active',
-      category: 'Movie',
-      views: '19,141',
-      image: '/img/sidebar/comment-3.jpg'
-    },
-    {
-      title: 'Monogatari Series: Second Season',
-      status: 'Active',
-      category: 'Movie',
-      views: '19,141',
-      image: '/img/sidebar/comment-4.jpg'
+      // Replace with your actual API endpoint
+      const response = await fetch('http://localhost:2000/movies');
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Process the data
+      setFilms(data);
+
+      // Set hero films from the first 3 items with the most complete data
+      const heroData = data.slice(0, 3).map((film: Film) => ({
+        title: film.name,
+        category: film.category || 'Adventure',
+        description: film.description || 'Experience the adventure of a lifetime...',
+        image: film.image.startsWith('http')
+          ? film.image
+          : `/img/hero/hero-1.jpg` // Fallback image
+      }));
+
+      setHeroFilms(heroData);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching films:', err);
+      setError('Failed to load films. Please try again later.');
+
+      // Use mock data as fallback if API fails
+      const mockFilms: Film[] = [
+        { _id: '1', name: 'Fate / Stay Night: Unlimited Blade Works', image: 'details-pic.jpg', category: 'Fantasy', views: 54200, rating: 4.8 },
+        { _id: '2', name: 'Attack on Titan', image: 'trending-1.jpg', category: 'Action', views: 78100, rating: 4.9 },
+        { _id: '3', name: 'One Punch Man', image: 'trending-2.jpg', category: 'Comedy', views: 63500, rating: 4.7 },
+        { _id: '4', name: 'Demon Slayer', image: 'trending-3.jpg', category: 'Adventure', views: 89300, rating: 4.9 },
+        { _id: '5', name: 'My Hero Academia', image: 'trending-4.jpg', category: 'Action', views: 67800, rating: 4.6 },
+        { _id: '6', name: 'Jujutsu Kaisen', image: 'trending-5.jpg', category: 'Action', views: 72400, rating: 4.8 },
+      ];
+
+      setFilms(mockFilms);
+
+      // Set hero films from mock data
+      const mockHeroItems: HeroItem[] = [
+        {
+          title: 'Fate / Stay Night: Unlimited Blade Works',
+          category: 'Adventure',
+          description: 'After 30 days of travel across the world...',
+          image: '/img/hero/hero-1.jpg'
+        },
+        {
+          title: 'Demon Slayer: Kimetsu no Yaiba',
+          category: 'Action',
+          description: 'Tanjiro sets out to become a demon slayer to avenge his family...',
+          image: '/img/hero/hero-1.jpg'
+        },
+        {
+          title: 'Attack on Titan: Final Season',
+          category: 'Drama',
+          description: 'The war for Paradis zeroes in on Shiganshina...',
+          image: '/img/hero/hero-1.jpg'
+        }
+      ];
+
+      setHeroFilms(mockHeroItems);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // Function to fetch top viewed films
+  const fetchTopViewedFilms = async () => {
+    try {
+      // Call the NestJS endpoint directly using the controller's "top" endpoint
+      console.log('Fetching top viewed films...');
+      const response = await fetch('http://localhost:2000/movies/top?limit=5');
+      
+      if (!response.ok) {
+        console.error(`API error: ${response.status}`);
+        // Fallback to empty array on error
+        setTopViewedFilms([]);
+        return;
+      }
+      
+      // Get response as text first to check if it's valid
+      const text = await response.text();
+      
+      if (!text || text.trim() === '') {
+        console.error('Received empty response from top viewed films API');
+        setTopViewedFilms([]);
+        return;
+      }
+      
+      try {
+        // Parse the text as JSON
+        const data = JSON.parse(text);
+        console.log('Top viewed films:', data);
+        
+        if (Array.isArray(data)) {
+          setTopViewedFilms(data);
+        } else {
+          console.error('API returned non-array data for top viewed films');
+          setTopViewedFilms([]);
+        }
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        setTopViewedFilms([]);
+      }
+    } catch (err) {
+      console.error('Error fetching top viewed films:', err);
+      // Unable to fetch top viewed films
+      setTopViewedFilms([]);
+    }
+  };
 
   // Handle image URL to ensure it works with both local and external images
-  const getImageUrl = (image: string) => {
+  const getImageUrl = (image?: string): string => {
+    if (!image) {
+      // Return a default image if the image is undefined or null
+      return '/img/anime/default-poster.jpg';
+    }
+    
     if (image.startsWith('http')) {
       return image;
     } else {
@@ -394,19 +422,21 @@ const Home: NextPage = () => {
   };
 
   // User dropdown menu items
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="profile">
-        <Link href="/profile">My Profile</Link>
-      </Menu.Item>
-      <Menu.Item key="settings">
-        <Link href="/settings">Settings</Link>
-      </Menu.Item>
-      <Menu.Item key="logout" onClick={handleLogout}>
-        <span>Logout</span>
-      </Menu.Item>
-    </Menu>
-  );
+  const userMenu = [
+    {
+      key: 'profile',
+      label: <Link href="/profile">My Profile</Link>,
+    },
+    {
+      key: 'settings',
+      label: <Link href="/settings">Settings</Link>,
+    },
+    {
+      key: 'logout',
+      label: <span>Logout</span>,
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <div className="bg-gray-900 text-gray-200 min-h-screen">
@@ -415,6 +445,118 @@ const Home: NextPage = () => {
         <meta name="description" content="Anime streaming platform built with Next.js" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+
+      {/* Favorite Notification Modal */}
+      <Modal
+        open={favoriteModalVisible}
+        onCancel={() => setFavoriteModalVisible(false)}
+        footer={[
+          <Button 
+            key="ok" 
+            type="primary" 
+            onClick={() => setFavoriteModalVisible(false)}
+            style={{ 
+              backgroundColor: favoriteModalData.action === 'add' ? '#52c41a' : '#EF4444', 
+              borderColor: favoriteModalData.action === 'add' ? '#52c41a' : '#EF4444'
+            }}
+          >
+            OK
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {favoriteModalData.action === 'add' ? (
+              <><HeartFilled style={{ color: '#52c41a', marginRight: '8px' }} /> Added to Favorites!</>
+            ) : (
+              <><HeartOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Removed from Favorites</>
+            )}
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className={favoriteModalData.action === 'add' ? "favorites-modal-add" : "favorites-modal-remove"}
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        {favoriteModalData.film && (
+          <div className="flex flex-col sm:flex-row items-center sm:items-start">
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(favoriteModalData.film.image)} 
+                alt={favoriteModalData.film.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="text-lg font-bold mb-1">{favoriteModalData.film.name}</h3>
+              {favoriteModalData.action === 'add' ? (
+                <p>Successfully added to your favorites list</p>
+              ) : (
+                <p>Successfully removed from your favorites list</p>
+              )}
+              {favoriteModalData.film.category && (
+                <div className="mt-2 flex justify-center sm:justify-start">
+                  <span className="badge badge-category">{favoriteModalData.film.category}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Login Required Modal */}
+      <Modal
+        open={loginRequiredModalVisible}
+        onCancel={() => setLoginRequiredModalVisible(false)}
+        footer={[
+          <Button 
+            key="login" 
+            type="primary" 
+            onClick={() => {
+              setLoginRequiredModalVisible(false);
+              router.push('/login');
+            }}
+            style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+          >
+            Go to Login
+          </Button>,
+          <Button 
+            key="cancel" 
+            onClick={() => setLoginRequiredModalVisible(false)}
+          >
+            Cancel
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <UserOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Login Required
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className="favorites-modal-remove"
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        <div className="flex flex-col sm:flex-row items-center sm:items-start">
+          {selectedFilm && (
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(selectedFilm.image)} 
+                alt={selectedFilm.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="text-center sm:text-left">
+            <h3 className="text-lg font-bold mb-1">
+              {selectedFilm ? selectedFilm.name : 'This anime'}
+            </h3>
+            <p>You need to be logged in to add items to your favorites list.</p>
+            <p className="mt-2">Would you like to go to the login page?</p>
+          </div>
+        </div>
+      </Modal>
 
       <header className="bg-gray-900 border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
@@ -441,7 +583,7 @@ const Home: NextPage = () => {
             <div className="flex items-center">
               {isLoggedIn ? (
                 <>
-                  <Dropdown overlay={userMenu} placement="bottomRight">
+                  <Dropdown menu={{ items: userMenu }} placement="bottomRight">
                     <Button
                       type="text"
                       style={{ color: 'white' }}
@@ -547,9 +689,10 @@ const Home: NextPage = () => {
                     {loading ? (
                       // Loading placeholders
                       Array(6).fill(null).map((_, index) => (
-                        <Col lg={8} md={12} sm={12} xs={24} key={index}>
+                        <Col lg={8} md={12} sm={12} xs={12} key={index}>
                           <Card
                             loading={true}
+                            className="anime-card"
                             style={{ backgroundColor: '#1F2937', borderColor: '#374151', height: '16rem' }}
                           />
                         </Col>
@@ -557,7 +700,7 @@ const Home: NextPage = () => {
                     ) : (
                       // Actual content
                       films.map(film => (
-                        <Col lg={8} md={12} sm={12} xs={24} key={film._id}>
+                        <Col lg={8} md={12} sm={12} xs={12} key={film._id}>
                           <Link href={`/detail?id=${film._id}`}>
                             <Card
                               hoverable
@@ -615,7 +758,7 @@ const Home: NextPage = () => {
                               }
                             >
                               <Card.Meta
-                                title={<span style={{ color: '#EF4444' }}>{film.name}</span>}
+                                title={<span style={{ color: 'white' }}>{film.name}</span>}
                                 className="text-center"
                                 description={
                                   <div className="flex justify-between items-center mt-1" style={{ color: '#9CA3AF' }}>
@@ -638,151 +781,141 @@ const Home: NextPage = () => {
               </Col>
 
               <Col lg={8} md={24}>
-                <div className="p-4 rounded" style={{ backgroundColor: '#1F2937' }}>
+                <div className="p-4 rounded topview-section" style={{ backgroundColor: '#1F2937' }}>
                   <Title level={5} style={{ color: 'white', marginBottom: '1rem' }}>Top Views</Title>
-                  <Tabs defaultActiveKey="day" className="text-gray-300">
-                    <TabPane tab="Day" key="day">
-                      <List
-                        itemLayout="horizontal"
-                        dataSource={topViewItems.filter(item => item.categories.includes('day'))}
-                        renderItem={item => (
-                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
-                            <div className="relative w-full">
-                              <div
-                                className="h-32 w-full bg-cover bg-center rounded"
-                                style={{ backgroundImage: `url(${item.image})` }}
-                              >
-                                <div className="episode-badge">
-                                  {item.episode}
+                  <Tabs 
+                    defaultActiveKey="all" 
+                    className="text-gray-300"
+                    items={[
+                      {
+                        key: 'all',
+                        label: 'All Time',
+                        children: (
+                          <List
+                            itemLayout="horizontal"
+                            dataSource={topViewedFilms}
+                            renderItem={item => (
+                              <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
+                                <div className="relative w-full">
+                                  <div
+                                    className="h-32 w-full bg-cover bg-center rounded"
+                                    style={{ backgroundImage: `url(${getImageUrl(item.image)})` }}
+                                  >
+                                    {item.episode && (
+                                      <div className="episode-badge">
+                                        {item.episode}
+                                      </div>
+                                    )}
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> {item.views?.toLocaleString() || '0'}
+                                    </div>
+                                  </div>
+                                  <h5 className="text-white mt-2 hover:text-red-500">
+                                    <Link href={`/detail?id=${item._id}`} style={{ color: 'white' }} className="hover:text-red-500">{item.name}</Link>
+                                  </h5>
                                 </div>
-                                <div className="views-badge">
-                                  <EyeOutlined className="view-icon" /> {item.views}
+                              </List.Item>
+                            )}
+                          />
+                        )
+                      },
+                      {
+                        key: 'week',
+                        label: 'Week',
+                        children: (
+                          <List
+                            itemLayout="horizontal"
+                            dataSource={topViewedFilms.slice(0, 3)} // Just showing first 3 for weekly
+                            renderItem={item => (
+                              <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
+                                <div className="relative w-full">
+                                  <div
+                                    className="h-32 w-full bg-cover bg-center rounded"
+                                    style={{ backgroundImage: `url(${getImageUrl(item.image)})` }}
+                                  >
+                                    {item.episode && (
+                                      <div className="episode-badge">
+                                        {item.episode}
+                                      </div>
+                                    )}
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> {item.views?.toLocaleString() || '0'}
+                                    </div>
+                                  </div>
+                                  <h5 className="text-white mt-2 hover:text-red-500">
+                                    <Link href={`/detail?id=${item._id}`} style={{ color: 'white' }} className="hover:text-red-500">{item.name}</Link>
+                                  </h5>
                                 </div>
-                              </div>
-                              <h5 className="text-white mt-2 hover:text-red-500">
-                                <Link href="#">{item.title}</Link>
-                              </h5>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </TabPane>
-                    <TabPane tab="Week" key="week">
-                      <List
-                        itemLayout="horizontal"
-                        dataSource={topViewItems.filter(item => item.categories.includes('week'))}
-                        renderItem={item => (
-                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
-                            <div className="relative w-full">
-                              <div
-                                className="h-32 w-full bg-cover bg-center rounded"
-                                style={{ backgroundImage: `url(${item.image})` }}
-                              >
-                                <div className="episode-badge">
-                                  {item.episode}
+                              </List.Item>
+                            )}
+                          />
+                        )
+                      },
+                      {
+                        key: 'month',
+                        label: 'Month',
+                        children: (
+                          <List
+                            itemLayout="horizontal"
+                            dataSource={topViewedFilms.slice(0, 3)} // Just showing first 3 for monthly
+                            renderItem={item => (
+                              <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
+                                <div className="relative w-full">
+                                  <div
+                                    className="h-32 w-full bg-cover bg-center rounded"
+                                    style={{ backgroundImage: `url(${getImageUrl(item.image)})` }}
+                                  >
+                                    {item.episode && (
+                                      <div className="episode-badge">
+                                        {item.episode}
+                                      </div>
+                                    )}
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> {item.views?.toLocaleString() || '0'}
+                                    </div>
+                                  </div>
+                                  <h5 className="text-white mt-2 hover:text-red-500">
+                                    <Link href={`/detail?id=${item._id}`} style={{ color: 'white' }} className="hover:text-red-500">{item.name}</Link>
+                                  </h5>
                                 </div>
-                                <div className="views-badge">
-                                  <EyeOutlined className="view-icon" /> {item.views}
+                              </List.Item>
+                            )}
+                          />
+                        )
+                      },
+                      {
+                        key: 'years',
+                        label: 'Years',
+                        children: (
+                          <List
+                            itemLayout="horizontal"
+                            dataSource={topViewedFilms.slice(0, 3)} // Just showing first 3 for yearly
+                            renderItem={item => (
+                              <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
+                                <div className="relative w-full">
+                                  <div
+                                    className="h-32 w-full bg-cover bg-center rounded"
+                                    style={{ backgroundImage: `url(${getImageUrl(item.image)})` }}
+                                  >
+                                    {item.episode && (
+                                      <div className="episode-badge">
+                                        {item.episode}
+                                      </div>
+                                    )}
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> {item.views?.toLocaleString() || '0'}
+                                    </div>
+                                  </div>
+                                  <h5 className="text-white mt-2 hover:text-red-500">
+                                    <Link href={`/detail?id=${item._id}`} style={{ color: 'white' }} className="hover:text-red-500">{item.name}</Link>
+                                  </h5>
                                 </div>
-                              </div>
-                              <h5 className="text-white mt-2 hover:text-red-500">
-                                <Link href="#">{item.title}</Link>
-                              </h5>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </TabPane>
-                    <TabPane tab="Month" key="month">
-                      <List
-                        itemLayout="horizontal"
-                        dataSource={topViewItems.filter(item => item.categories.includes('month'))}
-                        renderItem={item => (
-                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
-                            <div className="relative w-full">
-                              <div
-                                className="h-32 w-full bg-cover bg-center rounded"
-                                style={{ backgroundImage: `url(${item.image})` }}
-                              >
-                                <div className="episode-badge">
-                                  {item.episode}
-                                </div>
-                                <div className="views-badge">
-                                  <EyeOutlined className="view-icon" /> {item.views}
-                                </div>
-                              </div>
-                              <h5 className="text-white mt-2 hover:text-red-500">
-                                <Link href="#">{item.title}</Link>
-                              </h5>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </TabPane>
-                    <TabPane tab="Years" key="years">
-                      <List
-                        itemLayout="horizontal"
-                        dataSource={topViewItems.filter(item => item.categories.includes('years'))}
-                        renderItem={item => (
-                          <List.Item className="py-2" style={{ borderBottom: '1px solid #374151' }}>
-                            <div className="relative w-full">
-                              <div
-                                className="h-32 w-full bg-cover bg-center rounded"
-                                style={{ backgroundImage: `url(${item.image})` }}
-                              >
-                                <div className="episode-badge">
-                                  {item.episode}
-                                </div>
-                                <div className="views-badge">
-                                  <EyeOutlined className="view-icon" /> {item.views}
-                                </div>
-                              </div>
-                              <h5 className="text-white mt-2 hover:text-red-500">
-                                <Link href="#">{item.title}</Link>
-                              </h5>
-                            </div>
-                          </List.Item>
-                        )}
-                      />
-                    </TabPane>
-                  </Tabs>
-                </div>
-
-                <div className="p-4 rounded mt-8" style={{ backgroundColor: '#1F2937' }}>
-                  <Title level={5} style={{ color: 'white', marginBottom: '1rem' }}>New Comments</Title>
-                  <List
-                    itemLayout="horizontal"
-                    dataSource={commentItems}
-                    renderItem={item => (
-                      <List.Item className="py-3" style={{ borderBottom: '1px solid #374151' }}>
-                        <List.Item.Meta
-                          avatar={
-                            <div className="w-16 h-16 overflow-hidden rounded">
-                              <div
-                                className="h-full w-full bg-cover bg-center"
-                                style={{ backgroundImage: `url(${item.image})` }}
-                              ></div>
-                            </div>
-                          }
-                          title={
-                            <div>
-                              <div className="mb-1">
-                                <span className="text-xs text-red-500 mr-2">{item.status}</span>
-                                <span className="text-xs text-gray-400">{item.category}</span>
-                              </div>
-                              <Link href="#" className="text-white hover:text-red-500">
-                                {item.title}
-                              </Link>
-                            </div>
-                          }
-                          description={
-                            <div className="text-gray-400 flex items-center text-xs">
-                              <EyeOutlined className="mr-1" /> {item.views} Views
-                            </div>
-                          }
-                        />
-                      </List.Item>
-                    )}
+                              </List.Item>
+                            )}
+                          />
+                        )
+                      }
+                    ]}
                   />
                 </div>
               </Col>
@@ -874,14 +1007,17 @@ const Home: NextPage = () => {
         .hero-carousel .slick-dots li button:before {
           color: white;
         }
+        .ant-tabs-tab:hover {
+          color: #f56565;
+        }
+        .ant-tabs-tab {
+          color: white !important; /* Make tab text white before clicking */
+        }
         .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
           color: #f56565 !important;
         }
         .ant-tabs-ink-bar {
           background: #f56565 !important;
-        }
-        .ant-tabs-tab:hover {
-          color: #f56565;
         }
         .ant-list-item {
           border-color: #374151;
@@ -927,7 +1063,7 @@ const Home: NextPage = () => {
           position: absolute;
           top: 8px;
           left: 8px;
-          background-color: rgba(0, 0, 0, 0.7);
+          background-color: #EF4444;
           color: white;
           font-size: 0.75rem;
           padding: 2px 8px;

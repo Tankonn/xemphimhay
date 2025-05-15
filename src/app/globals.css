@@ -73,3 +73,269 @@ body {
 .favorite-btn.is-favorite {
   color: #ff4d4f !important;
 }
+
+/* Notification styles to ensure they're visible */
+.ant-notification {
+  z-index: 9999 !important; /* Ensure high z-index */
+}
+
+.ant-notification-notice {
+  padding: 16px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Force light text on dark background for notification */
+.ant-notification-notice-message,
+.ant-notification-notice-description {
+  color: rgba(0, 0, 0, 0.85) !important;
+}
+
+/* Make notification more visible when added to favorites with green background */
+.ant-notification-notice-success {
+  background-color: #f6ffed !important;
+  border: 1px solid #b7eb8f !important;
+}
+
+/* Responsive Modal Styling */
+/* Small Mobile (portrait phones) */
+@media (max-width: 375px) {
+  .favorites-modal-add .ant-modal-content,
+  .favorites-modal-remove .ant-modal-content {
+    margin: 0 10px !important;
+    width: calc(100% - 20px) !important;
+  }
+  
+  .favorites-modal-add .ant-modal-body,
+  .favorites-modal-remove .ant-modal-body {
+    padding: 12px !important;
+  }
+  
+  /* Stack buttons vertically on small mobile */
+  .favorites-modal-add .ant-modal-footer,
+  .favorites-modal-remove .ant-modal-footer {
+    padding: 8px !important;
+    flex-direction: column !important;
+  }
+  
+  .favorites-modal-add .ant-modal-footer button,
+  .favorites-modal-remove .ant-modal-footer button {
+    margin-bottom: 8px !important;
+    width: 100% !important;
+    height: 36px !important;
+  }
+
+  /* Smaller image on very small screens */
+  .favorites-modal-add .w-20,
+  .favorites-modal-remove .w-20 {
+    width: 50px !important;
+    height: 50px !important;
+  }
+}
+
+/* Mobile (portrait phones) */
+@media (max-width: 576px) {
+  .favorites-modal-add .ant-modal-content,
+  .favorites-modal-remove .ant-modal-content {
+    margin: 0 20px !important;
+    width: calc(100% - 40px) !important;
+  }
+  
+  .favorites-modal-add .ant-modal-body,
+  .favorites-modal-remove .ant-modal-body {
+    padding: 16px !important;
+  }
+  
+  .favorites-modal-add .ant-modal-footer,
+  .favorites-modal-remove .ant-modal-footer {
+    padding: 10px !important;
+  }
+
+  /* Stack buttons on mobile */
+  .favorites-modal-add .ant-modal-footer button,
+  .favorites-modal-remove .ant-modal-footer button {
+    margin-bottom: 8px !important;
+    width: 100% !important;
+  }
+
+  /* Adjust image size on mobile */
+  .favorites-modal-add .w-20,
+  .favorites-modal-remove .w-20 {
+    width: 60px !important;
+    height: 60px !important;
+  }
+
+  /* Adjust text size on mobile */
+  .favorites-modal-add h3,
+  .favorites-modal-remove h3 {
+    font-size: 16px !important;
+  }
+
+  .favorites-modal-add p,
+  .favorites-modal-remove p {
+    font-size: 14px !important;
+  }
+}
+
+/* Tablet (landscape phones, portrait tablets) */
+@media (min-width: 577px) and (max-width: 991px) {
+  .favorites-modal-add .ant-modal-content,
+  .favorites-modal-remove .ant-modal-content {
+    width: 80% !important;
+    max-width: 500px !important;
+    margin: 0 auto !important;
+  }
+  
+  /* Adjust image size for tablets */
+  .favorites-modal-add .w-20,
+  .favorites-modal-remove .w-20 {
+    width: 70px !important;
+    height: 70px !important;
+  }
+}
+
+/* Landscape orientation specific adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+  .favorites-modal-add .ant-modal-content,
+  .favorites-modal-remove .ant-modal-content {
+    margin: 10px auto !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+  
+  /* For landscape mode, keep content in a row layout */
+  .favorites-modal-add .flex-col,
+  .favorites-modal-remove .flex-col {
+    flex-direction: row !important;
+  }
+  
+  .favorites-modal-add .mb-4,
+  .favorites-modal-remove .mb-4 {
+    margin-bottom: 0 !important;
+    margin-right: 16px !important;
+  }
+  
+  /* Ensure buttons stay side by side in landscape */
+  .favorites-modal-add .ant-modal-footer button,
+  .favorites-modal-remove .ant-modal-footer button {
+    width: auto !important;
+    margin-bottom: 0 !important;
+  }
+}
+
+/* Favorites Modal - Add (green success styling) */
+.favorites-modal-add .ant-modal-content {
+  border: 2px solid #52c41a !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(82, 196, 26, 0.3) !important;
+}
+
+.favorites-modal-add .ant-modal-header {
+  background-color: #f6ffed !important;
+  border-bottom: 1px solid #b7eb8f !important;
+}
+
+.favorites-modal-add .ant-modal-title {
+  color: #389e0d !important;
+  font-weight: bold !important;
+  font-size: 18px !important;
+}
+
+.favorites-modal-add .ant-modal-body {
+  padding: 24px !important;
+  background-color: white !important;
+}
+
+.favorites-modal-add .ant-modal-footer {
+  border-top: 1px solid #b7eb8f !important;
+  background-color: #f6ffed !important;
+}
+
+.favorites-modal-add .badge-category {
+  background-color: #f6ffed !important;
+  color: #389e0d !important;
+  border: 1px solid #b7eb8f !important;
+}
+
+/* Favorites Modal - Remove (red styling) */
+.favorites-modal-remove .ant-modal-content {
+  border: 2px solid #EF4444 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3) !important;
+}
+
+.favorites-modal-remove .ant-modal-header {
+  background-color: #fff1f0 !important;
+  border-bottom: 1px solid #ffa39e !important;
+}
+
+.favorites-modal-remove .ant-modal-title {
+  color: #cf1322 !important;
+  font-weight: bold !important;
+  font-size: 18px !important;
+}
+
+.favorites-modal-remove .ant-modal-body {
+  padding: 24px !important;
+  background-color: white !important;
+}
+
+.favorites-modal-remove .ant-modal-footer {
+  border-top: 1px solid #ffa39e !important;
+  background-color: #fff1f0 !important;
+}
+
+.favorites-modal-remove .badge-category {
+  background-color: #fff1f0 !important;
+  color: #cf1322 !important;
+  border: 1px solid #ffa39e !important;
+}
+
+/* Hide TopView on mobile devices */
+@media (max-width: 640px) {
+  .topview-section {
+    display: none !important;
+  }
+  
+  /* Adjustments for 2-column film grid on mobile */
+  .anime-card .ant-card-cover .h-48 {
+    height: 10rem !important;  /* Shorter image height on mobile */
+  }
+  
+  .anime-card .ant-card-meta-title {
+    font-size: 14px !important;  /* Smaller title font on mobile */
+  }
+  
+  .anime-card .ant-card-meta-description {
+    font-size: 12px !important;  /* Smaller description font on mobile */
+  }
+  
+  /* Make heart button smaller on mobile */
+  .favorite-btn .heart-btn {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  /* Adjust badge sizes on mobile */
+  .category-badge, .episode-badge, .views-badge, .rating-badge {
+    font-size: 0.65rem !important;
+    padding: 1px 6px !important;
+  }
+  
+  /* Adjust grid spacing on mobile */
+  .ant-row {
+    margin-right: -8px !important;
+    margin-left: -8px !important;
+  }
+  
+  .ant-col {
+    padding-right: 8px !important;
+    padding-left: 8px !important;
+    margin-bottom: 16px !important;
+  }
+  
+  /* Adjust card body padding on mobile */
+  .anime-card .ant-card-body {
+    padding: 12px 8px !important;
+  }
+}

@@ -10,7 +10,6 @@ import { UserOutlined, EditOutlined, StarOutlined, ClockCircleOutlined, HeartOut
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
 
-const { TabPane } = Tabs;
 const { Title, Paragraph, Text } = Typography;
 
 // TypeScript interfaces
@@ -27,6 +26,7 @@ interface User {
 
 interface Film {
   _id: string;
+  movieId?: string;
   name: string;
   image: string;
   category?: string;
@@ -36,6 +36,10 @@ interface Film {
   isWatched?: boolean;
   isFavorite?: boolean;
   rating?: number;
+  progress?: number;
+  timestamp?: string;
+  episodeId?: string;
+  duration?: string;
 }
 
 const Profile: NextPage = () => {
@@ -46,6 +50,10 @@ const Profile: NextPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+  const [favoriteModalVisible, setFavoriteModalVisible] = useState<boolean>(false);
+  const [favoriteModalData, setFavoriteModalData] = useState<{film: Film | null, action: 'add' | 'remove'}>({film: null, action: 'add'});
+  const [loginRequiredModalVisible, setLoginRequiredModalVisible] = useState<boolean>(false);
+  const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [form] = Form.useForm();
   const router = useRouter();
 
@@ -191,7 +199,13 @@ const Profile: NextPage = () => {
   // Function to fetch watch history
   const fetchWatchHistory = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:2000/watch-history', {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.error('No user ID available for fetching watch history');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:2000/watch-history/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -199,14 +213,102 @@ const Profile: NextPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setWatchHistory(data);
+        console.log('Watch history data:', data);
+        
+        // Process the watch history data into our Film format
+        const processedHistory = data.map((item: any) => {
+          // Handle case where movieId is an object with nested data
+          const movieData = item.movieId && typeof item.movieId === 'object' ? item.movieId : {};
+          const movieId = movieData._id || item.movieId;
+          
+          // Determine watched status - check multiple potential fields
+          const isWatched = 
+            item.completed === true || 
+            item.watched === true || 
+            (typeof item.watchTime === 'number' && item.watchTime > 0) ||
+            (typeof item.progress === 'number' && item.progress >= 90);
+          
+          return {
+            _id: movieId, // Use the movie ID for linking
+            movieId: movieId, // Store the actual movie ID
+            name: movieData.name || item.movieName || 'Unknown Title',
+            image: movieData.image || item.image || '/img/anime/default-poster.jpg',
+            category: movieData.category || item.category || '',
+            episode: `Episode ${item.episodeNumber || '?'}`,
+            isWatched: isWatched,
+            progress: item.progress || item.watchTime || 0,
+            timestamp: item.updatedAt || item.timestamp || new Date().toISOString(),
+            episodeId: item.episodeId || '',
+            duration: movieData.duration || item.duration || '0:00'
+          };
+        });
+        
+        // Sort by most recent first
+        processedHistory.sort((a: Film, b: Film) => {
+          return new Date(b.timestamp || '').getTime() - new Date(a.timestamp || '').getTime();
+        });
+        
+        setWatchHistory(processedHistory);
+        
+        // Count unique movies that have been watched
+        const uniqueWatchedMovies = new Set();
+        processedHistory.forEach((item: Film) => {
+          if (item.isWatched) {
+            uniqueWatchedMovies.add(item._id);
+          }
+        });
+        
+        // Update the watched count in user profile
+        setUser(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            watchedCount: uniqueWatchedMovies.size
+          };
+        });
       } else {
+        const errorText = await response.text();
+        console.error('Failed to fetch watch history:', errorText);
         throw new Error('Failed to fetch watch history');
       }
     } catch (err) {
       console.error('Error fetching watch history:', err);
       // Will use mock data if this fails
     }
+  };
+
+  // Function to resume watching a video
+  const resumeWatching = (film: Film) => {
+    if (!film._id) {
+      notification.error({
+        message: 'Error',
+        description: 'Unable to resume. Missing movie information.',
+        placement: 'topRight'
+      });
+      return;
+    }
+    
+    // Calculate time to resume from (in seconds)
+    let resumeTime = 0;
+    if (film.progress && film.progress > 0 && film.progress < 100) {
+      // If we have progress data, use it
+      resumeTime = film.progress;
+    }
+    
+    // Save resumeTime in localStorage to be used on the detail page
+    localStorage.setItem('resumeTime', resumeTime.toString());
+    
+    // Save episodeId if available
+    if (film.episodeId) {
+      localStorage.setItem('resumeEpisodeId', film.episodeId);
+    }
+    
+    // Navigate to the detail page with query params
+    const queryParams = film.episodeId 
+      ? `id=${film._id}&resume=true&episodeId=${film.episodeId}`
+      : `id=${film._id}&resume=true`;
+      
+    router.push(`/detail?${queryParams}`);
   };
 
   // Set mock data if API fails
@@ -222,12 +324,84 @@ const Profile: NextPage = () => {
 
     // Mock watch history
     const mockWatchHistory: Film[] = [
-      { _id: '6', name: 'Tokyo Revengers', image: '/img/anime/recent-1.jpg', category: 'Action', isWatched: true, episode: 'S1:E24' },
-      { _id: '7', name: 'Chainsaw Man', image: '/img/anime/recent-2.jpg', category: 'Supernatural', isWatched: true, episode: 'S1:E12' },
-      { _id: '8', name: 'Spy x Family', image: '/img/anime/recent-3.jpg', category: 'Comedy', isWatched: true, episode: 'S1:E25' },
-      { _id: '4', name: 'Jujutsu Kaisen', image: '/img/anime/trending-4.jpg', category: 'Supernatural', isWatched: true, episode: 'S2:E8' },
-      { _id: '9', name: 'Vinland Saga', image: '/img/anime/recent-4.jpg', category: 'Historical', isWatched: true, episode: 'S2:E12' },
-      { _id: '10', name: 'Blue Lock', image: '/img/anime/recent-5.jpg', category: 'Sports', isWatched: true, episode: 'S1:E15' },
+      { 
+        _id: '6', 
+        movieId: '6',
+        name: 'Tokyo Revengers', 
+        image: '/img/anime/trending-6.jpg', 
+        category: 'Action', 
+        isWatched: true, 
+        episode: 'S1:E24',
+        progress: 75,
+        timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+        episodeId: 'ep-24',
+        duration: '24:15'
+      },
+      { 
+        _id: '7', 
+        movieId: '7',
+        name: 'Chainsaw Man', 
+        image: '/img/anime/trending-7.jpg', 
+        category: 'Supernatural', 
+        isWatched: true, 
+        episode: 'S1:E12',
+        progress: 100,
+        timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+        episodeId: 'ep-12',
+        duration: '23:45'
+      },
+      { 
+        _id: '8', 
+        movieId: '8',
+        name: 'Spy x Family', 
+        image: '/img/anime/trending-8.jpg', 
+        category: 'Comedy', 
+        isWatched: false, 
+        episode: 'S1:E25',
+        progress: 45,
+        timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        episodeId: 'ep-25',
+        duration: '24:00'
+      },
+      { 
+        _id: '4', 
+        movieId: '4',
+        name: 'Jujutsu Kaisen', 
+        image: '/img/anime/trending-4.jpg', 
+        category: 'Supernatural', 
+        isWatched: true, 
+        episode: 'S2:E8',
+        progress: 100,
+        timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+        episodeId: 'ep-33',
+        duration: '24:30'
+      },
+      { 
+        _id: '9', 
+        movieId: '9',
+        name: 'Vinland Saga', 
+        image: '/img/anime/trending-9.jpg', 
+        category: 'Historical', 
+        isWatched: false, 
+        episode: 'S2:E12',
+        progress: 30,
+        timestamp: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
+        episodeId: 'ep-37',
+        duration: '25:00'
+      },
+      { 
+        _id: '10', 
+        movieId: '10',
+        name: 'Blue Lock', 
+        image: '/img/anime/trending-10.jpg', 
+        category: 'Sports', 
+        isWatched: true, 
+        episode: 'S1:E15',
+        progress: 100,
+        timestamp: new Date(Date.now() - 432000000).toISOString(), // 5 days ago
+        episodeId: 'ep-15',
+        duration: '23:30'
+      },
     ];
 
     setFavorites(mockFavorites);
@@ -243,7 +417,7 @@ const Profile: NextPage = () => {
     setIsLoggedIn(false);
     setUser(null);
     // Redirect to home page
-    router.push('/');
+    router.push('/home');
   };
 
   // Function to handle profile update
@@ -316,12 +490,19 @@ const Profile: NextPage = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        notification.error({
-          message: 'Authentication Error',
-          description: 'Please log in to add favorites.',
-          placement: 'topRight',
-          duration: 3
-        });
+        // Find the film data to display in the login required modal
+        const film = watchHistory.find(f => f._id === movieId);
+        if (film) {
+          setSelectedFilm(film);
+          setLoginRequiredModalVisible(true);
+        } else {
+          notification.error({
+            message: 'Authentication Error',
+            description: 'Please log in to add favorites.',
+            placement: 'topRight',
+            duration: 3
+          });
+        }
         return;
       }
 
@@ -348,6 +529,10 @@ const Profile: NextPage = () => {
         return;
       }
 
+      // Find the film data from watchHistory
+      const filmToAdd = watchHistory.find(f => f._id === movieId);
+      console.log('Film data for add favorite:', filmToAdd);
+
       const response = await fetch('http://localhost:2000/favorites', {
         method: 'POST',
         headers: {
@@ -371,12 +556,21 @@ const Profile: NextPage = () => {
       // Refresh favorites list
       await fetchFavorites(token, userId.toString());
       
-      notification.success({
-        message: 'Success',
-        description: 'Added to favorites successfully!',
-        placement: 'topRight',
-        duration: 2
-      });
+      // Show modal if film data exists
+      if (filmToAdd) {
+        setFavoriteModalData({
+          film: filmToAdd,
+          action: 'add'
+        });
+        setFavoriteModalVisible(true);
+      } else {
+        notification.success({
+          message: 'Success',
+          description: 'Added to favorites successfully!',
+          placement: 'topRight',
+          duration: 2
+        });
+      }
     } catch (err) {
       console.error('Error adding to favorites:', err);
       notification.error({
@@ -401,6 +595,10 @@ const Profile: NextPage = () => {
         });
         return;
       }
+
+      // Find the film data to use in the notification before removing
+      const film = favorites.find(f => f._id === filmId);
+      console.log('Film data for remove favorite:', film);
 
       const response = await fetch(`http://localhost:2000/favorites/${filmId}`, {
         method: 'DELETE',
@@ -427,12 +625,21 @@ const Profile: NextPage = () => {
         };
       });
 
-      notification.success({
-        message: 'Success',
-        description: 'Removed from favorites successfully!',
-        placement: 'topRight',
-        duration: 2
-      });
+      // Show modal if film data exists
+      if (film) {
+        setFavoriteModalData({
+          film,
+          action: 'remove'
+        });
+        setFavoriteModalVisible(true);
+      } else {
+        notification.success({
+          message: 'Success',
+          description: 'Removed from favorites successfully!',
+          placement: 'topRight',
+          duration: 2
+        });
+      }
     } catch (err) {
       console.error('Error removing from favorites:', err);
       notification.error({
@@ -445,7 +652,12 @@ const Profile: NextPage = () => {
   };
 
   // Function to get image URL
-  const getImageUrl = (image: string) => {
+  const getImageUrl = (image?: string): string => {
+    if (!image) {
+      // Return a default image if the image is undefined or null
+      return '/img/anime/boGia.jpg';
+    }
+    
     if (image.startsWith('http')) {
       return image;
     } else {
@@ -475,6 +687,25 @@ const Profile: NextPage = () => {
     });
   };
 
+  // Function to format time since
+  const formatTimeSince = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diff < 60) {
+      return 'Just now';
+    } else if (diff < 3600) {
+      return `${Math.floor(diff / 60)} minutes ago`;
+    } else if (diff < 86400) {
+      return `${Math.floor(diff / 3600)} hours ago`;
+    } else if (diff < 2592000) {
+      return `${Math.floor(diff / 86400)} days ago`;
+    } else {
+      return formatDate(timestamp);
+    }
+  };
+
   return (
     <div className="bg-gray-900 text-gray-200 min-h-screen">
       <Head>
@@ -482,6 +713,118 @@ const Profile: NextPage = () => {
         <meta name="description" content="User profile and favorite anime" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+
+      {/* Favorite Notification Modal */}
+      <Modal
+        open={favoriteModalVisible}
+        onCancel={() => setFavoriteModalVisible(false)}
+        footer={[
+          <Button 
+            key="ok" 
+            type="primary" 
+            onClick={() => setFavoriteModalVisible(false)}
+            style={{ 
+              backgroundColor: favoriteModalData.action === 'add' ? '#52c41a' : '#EF4444', 
+              borderColor: favoriteModalData.action === 'add' ? '#52c41a' : '#EF4444'
+            }}
+          >
+            OK
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {favoriteModalData.action === 'add' ? (
+              <><HeartFilled style={{ color: '#52c41a', marginRight: '8px' }} /> Added to Favorites!</>
+            ) : (
+              <><HeartOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Removed from Favorites</>
+            )}
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className={favoriteModalData.action === 'add' ? "favorites-modal-add" : "favorites-modal-remove"}
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        {favoriteModalData.film && (
+          <div className="flex flex-col sm:flex-row items-center sm:items-start">
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(favoriteModalData.film.image)} 
+                alt={favoriteModalData.film.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="text-lg font-bold mb-1">{favoriteModalData.film.name}</h3>
+              {favoriteModalData.action === 'add' ? (
+                <p>Successfully added to your favorites list</p>
+              ) : (
+                <p>Successfully removed from your favorites list</p>
+              )}
+              {favoriteModalData.film.category && (
+                <div className="mt-2 flex justify-center sm:justify-start">
+                  <span className="badge badge-category">{favoriteModalData.film.category}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Login Required Modal */}
+      <Modal
+        open={loginRequiredModalVisible}
+        onCancel={() => setLoginRequiredModalVisible(false)}
+        footer={[
+          <Button 
+            key="login" 
+            type="primary" 
+            onClick={() => {
+              setLoginRequiredModalVisible(false);
+              router.push('/login');
+            }}
+            style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+          >
+            Go to Login
+          </Button>,
+          <Button 
+            key="cancel" 
+            onClick={() => setLoginRequiredModalVisible(false)}
+          >
+            Cancel
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <UserOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Login Required
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className="favorites-modal-remove"
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        <div className="flex flex-col sm:flex-row items-center sm:items-start">
+          {selectedFilm && (
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(selectedFilm.image)} 
+                alt={selectedFilm.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="text-center sm:text-left">
+            <h3 className="text-lg font-bold mb-1">
+              {selectedFilm ? selectedFilm.name : 'This anime'}
+            </h3>
+            <p>You need to be logged in to add items to your favorites list.</p>
+            <p className="mt-2">Would you like to go to the login page?</p>
+          </div>
+        </div>
+      </Modal>
 
       <header className="bg-gray-900 border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
@@ -635,201 +978,258 @@ const Profile: NextPage = () => {
             </div>
 
             {/* Tabs Section */}
-            <Tabs defaultActiveKey="favorites" className="profile-tabs">
-              <TabPane tab={<span className="text-lg"><HeartFilled style={{ marginRight: '0.5rem' }} />Favorites</span>} key="favorites">
-                {favorites.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-800 rounded-lg">
-                    <HeartOutlined style={{ fontSize: '48px', color: '#4B5563', marginBottom: '1rem' }} />
-                    <Title level={4} style={{ color: '#9CA3AF' }}>No favorites yet</Title>
-                    <Paragraph style={{ color: '#6B7280' }}>
-                      Start adding anime to your favorites list!
-                    </Paragraph>
-                    <Button
-                      type="primary"
-                      style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
-                      onClick={() => router.push('/home')}
-                    >
-                      Browse Anime
-                    </Button>
-                  </div>
-                ) : (
-                  <Row gutter={[16, 24]}>
-                    {favorites.map(film => (
-                      <Col lg={6} md={8} sm={12} xs={24} key={film._id}>
-                        <Card
-                          hoverable
-                          className="bg-gray-800 border-gray-700 overflow-hidden favorite-card"
-                          style={{ backgroundColor: '#1F2937', borderColor: '#374151' }}
-                          cover={
-                            <div className="relative">
-                              <div
-                                className="h-48 bg-cover bg-center"
-                                style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
-                              ></div>
-                              {/* Category badge */}
-                              {film.category && (
-                                <div className="category-badge">
-                                  {film.category}
-                                </div>
-                              )}
-                              {/* Episode badge - if available */}
-                              {film.episode && (
-                                <div className="episode-badge">
-                                  <span>{film.episode}</span>
-                                </div>
-                              )}
-                              {/* Views counter */}
-                              {/* {film.views && (
-                                <div className="views-badge">
-                                  <EyeOutlined className="view-icon" /> 
-                                  <span>{film.views.toLocaleString()}</span>
-                                </div>
-                              )} */}
-                              {/* Heart button - on the left */}
-                              <div className="absolute bottom-2 left-2 favorite-btn">
-                                {!favorites.some(fav => fav._id === film._id) ? (
-                                  <Button
-                                    type="primary"
-                                    danger
-                                    icon={<HeartOutlined />}
-                                    className="rounded-full heart-btn"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAddToFavorites(film._id);
-                                    }}
-                                  />
-                                ) : (
-                                  <Button
-                                    type="primary"
-                                    danger
-                                    icon={<HeartFilled />}
-                                    className="rounded-full heart-btn"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRemoveFavorite(film._id);
-                                    }}
-                                  />
-                                )}
-                              </div>
-                              {/* Rating badge - on the right */}
-                              {film.rating && (
-                                <div className="rating-badge">
-                                  <StarOutlined className="star-icon" />
-                                  <span>{film.rating.toFixed(1)}</span>
-                                </div>
-                              )}
-                            </div>
-                          }
+            <Tabs 
+              defaultActiveKey="favorites" 
+              className="profile-tabs"
+              items={[
+                {
+                  key: 'favorites',
+                  label: <span className="text-lg"><HeartFilled style={{ marginRight: '0.5rem' }} />Favorites</span>,
+                  children: (
+                    favorites.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-800 rounded-lg">
+                        <HeartOutlined style={{ fontSize: '48px', color: '#4B5563', marginBottom: '1rem' }} />
+                        <Title level={4} style={{ color: '#9CA3AF' }}>No favorites yet</Title>
+                        <Paragraph style={{ color: '#6B7280' }}>
+                          Start adding anime to your favorites list!
+                        </Paragraph>
+                        <Button
+                          type="primary"
+                          style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
+                          onClick={() => router.push('/home')}
                         >
-                          <Link href={`/detail?id=${film._id}`}>
-                            <Card.Meta
-                              title={<span style={{ color: '#EF4444' }}>{film.name}</span>}
-                              description={
-                                <div style={{ color: '#9CA3AF' }} className="flex justify-between">
-                                  <span>{film.category}</span>
-                                  {film.views && (
-                                    <span className="flex items-center">
-                                      <EyeOutlined className="view-icon" /> {film.views.toLocaleString()}
-                                    </span>
+                          Browse Anime
+                        </Button>
+                      </div>
+                    ) : (
+                      <Row gutter={[16, 24]}>
+                        {favorites.map(film => (
+                          <Col lg={6} md={8} sm={12} xs={24} key={film._id}>
+                            <Card
+                              hoverable
+                              className="bg-gray-800 border-gray-700 overflow-hidden favorite-card"
+                              style={{ backgroundColor: '#1F2937', borderColor: '#374151' }}
+                              cover={
+                                <div className="relative">
+                                  <div
+                                    className="h-48 bg-cover bg-center"
+                                    style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
+                                  ></div>
+                                  {/* Category badge */}
+                                  {film.category && (
+                                    <div className="category-badge">
+                                      {film.category}
+                                    </div>
+                                  )}
+                                  {/* Episode badge - if available */}
+                                  {film.episode && (
+                                    <div className="episode-badge">
+                                      <span>{film.episode}</span>
+                                    </div>
+                                  )}
+                                  {/* Views counter */}
+                                  {/* {film.views && (
+                                    <div className="views-badge">
+                                      <EyeOutlined className="view-icon" /> 
+                                      <span>{film.views.toLocaleString()}</span>
+                                    </div>
+                                  )} */}
+                                  {/* Heart button - on the left */}
+                                  <div className="absolute bottom-2 left-2 favorite-btn">
+                                    {!favorites.some(fav => fav._id === film._id) ? (
+                                      <Button
+                                        type="primary"
+                                        danger
+                                        icon={<HeartOutlined />}
+                                        className="rounded-full heart-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAddToFavorites(film._id);
+                                        }}
+                                      />
+                                    ) : (
+                                      <Button
+                                        type="primary"
+                                        danger
+                                        icon={<HeartFilled />}
+                                        className="rounded-full heart-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveFavorite(film._id);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                  {/* Rating badge - on the right */}
+                                  {film.rating && (
+                                    <div className="rating-badge">
+                                      <StarOutlined className="star-icon" />
+                                      <span>{film.rating.toFixed(1)}</span>
+                                    </div>
                                   )}
                                 </div>
                               }
-                            />
-                          </Link>
-                        </Card>
-                      </Col>
-                    ))}
-                  </Row>
-                )}
-              </TabPane>
-              <TabPane tab={<span className="text-lg"><ClockCircleOutlined style={{ marginRight: '0.5rem' }} />Watch History</span>} key="history">
-                {watchHistory.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-800 rounded-lg">
-                    <ClockCircleOutlined style={{ fontSize: '48px', color: '#4B5563', marginBottom: '1rem' }} />
-                    <Title level={4} style={{ color: '#9CA3AF' }}>No watch history yet</Title>
-                    <Paragraph style={{ color: '#6B7280' }}>
-                      Start watching anime to build your history!
-                    </Paragraph>
-                    <Button
-                      type="primary"
-                      style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
-                      onClick={() => router.push('/')}
-                    >
-                      Browse Anime
-                    </Button>
-                  </div>
-                ) : (
-                  <List
-                    itemLayout="horizontal"
-                    dataSource={watchHistory}
-                    renderItem={film => (
-                      <List.Item style={{ borderBottom: '1px solid #374151' }}>
-                        <List.Item.Meta
-                          avatar={
-                            <div className="w-24 h-16 overflow-hidden rounded relative">
-                              <div
-                                className="h-full w-full bg-cover bg-center"
-                                style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
-                              ></div>
-                              {film.episode && (
-                                <div className="episode-badge" style={{ top: '2px', left: '2px', fontSize: '0.65rem' }}>
-                                  {film.episode}
+                            >
+                              <Link href={`/detail?id=${film._id}`}>
+                                <Card.Meta
+                                  title={<span style={{ color: 'white' }}>{film.name}</span>}
+                                  description={
+                                    <div style={{ color: '#9CA3AF' }}>
+                                      <div className="flex flex-col">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="mr-4">{film.category}</span>
+                                          {film.episode && (
+                                            <span className="rounded text-xs" style={{ color: '#D1D5DB' }}>
+                                              {film.episode}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {film.progress !== undefined && (
+                                          <div className="mt-1">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-xs">{film.isWatched ? 'Watched' : 'In progress'}</span>
+                                              <span className="text-xs">{film.progress}%</span>
+                                            </div>
+                                            <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                              <div 
+                                                className="bg-red-500 h-1.5 rounded-full" 
+                                                style={{ width: `${film.progress}%` }}
+                                              ></div>
+                                            </div>
+                                            {film.timestamp && (
+                                              <div className="text-xs mt-1 text-gray-500">
+                                                {formatTimeSince(film.timestamp)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  }
+                                />
+                              </Link>
+                            </Card>
+                          </Col>
+                        ))}
+                      </Row>
+                    )
+                  )
+                },
+                {
+                  key: 'history',
+                  label: <span className="text-lg"><ClockCircleOutlined style={{ marginRight: '0.5rem' }} />Watch History</span>,
+                  children: (
+                    watchHistory.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-800 rounded-lg">
+                        <ClockCircleOutlined style={{ fontSize: '48px', color: '#4B5563', marginBottom: '1rem' }} />
+                        <Title level={4} style={{ color: '#9CA3AF' }}>No watch history yet</Title>
+                        <Paragraph style={{ color: '#6B7280' }}>
+                          Start watching anime to build your history!
+                        </Paragraph>
+                        <Button
+                          type="primary"
+                          style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
+                          onClick={() => router.push('/')}
+                        >
+                          Browse Anime
+                        </Button>
+                      </div>
+                    ) : (
+                      <List
+                        itemLayout="horizontal"
+                        dataSource={watchHistory}
+                        renderItem={film => (
+                          <List.Item style={{ borderBottom: '1px solid #374151' }}>
+                            <List.Item.Meta
+                              avatar={
+                                <div className="w-24 h-16 overflow-hidden rounded relative">
+                                  <div
+                                    className="h-full w-full bg-cover bg-center"
+                                    style={{ backgroundImage: `url(${getImageUrl(film.image)})` }}
+                                  ></div>
+                                  {film.episode && (
+                                    <div className="episode-badge" style={{ top: '2px', left: '2px', fontSize: '0.65rem' }}>
+                                      {film.episode}
+                                    </div>
+                                  )}
                                 </div>
+                              }
+                              title={
+                                <Link href={`/detail?id=${film._id}`} className="text-white hover:text-red-500 list-item-title">
+                                  {film.name}
+                                </Link>
+                              }
+                              description={
+                                <div style={{ color: '#9CA3AF' }}>
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="mr-4">{film.category}</span>
+                                      {film.episode && (
+                                        <span className="rounded text-xs" style={{ color: '#D1D5DB' }}>
+                                          {film.episode}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {film.progress !== undefined && (
+                                      <div className="mt-1">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs">{film.isWatched ? 'Watched' : 'In progress'}</span>
+                                          <span className="text-xs">{film.progress}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                                          <div 
+                                            className="bg-red-500 h-1.5 rounded-full" 
+                                            style={{ width: `${film.progress}%` }}
+                                          ></div>
+                                        </div>
+                                        {film.timestamp && (
+                                          <div className="text-xs mt-1 text-gray-500">
+                                            {formatTimeSince(film.timestamp)}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              }
+                            />
+                            <div className="flex space-x-2">
+                              <Button
+                                type="primary"
+                                style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                                size="small"
+                                onClick={() => resumeWatching(film)}
+                              >
+                                Resume
+                              </Button>
+                              {!favorites.some(fav => fav._id === film._id) ? (
+                                <Button
+                                  icon={<HeartOutlined />}
+                                  style={{ backgroundColor: '#374151', borderColor: '#374151', color: 'white' }}
+                                  size="small"
+                                  onClick={() => handleAddToFavorites(film._id)}
+                                >
+                                  Add to Favorites
+                                </Button>
+                              ) : (
+                                <Button
+                                  icon={<HeartFilled />}
+                                  danger
+                                  size="small"
+                                  onClick={() => handleRemoveFavorite(film._id)}
+                                >
+                                  Remove from Favorites
+                                </Button>
                               )}
                             </div>
-                          }
-                          title={
-                            <Link href={`/detail?id=${film._id}`} className="text-white hover:text-red-500">
-                              {film.name}
-                            </Link>
-                          }
-                          description={
-                            <div style={{ color: '#9CA3AF' }}>
-                              <div className="flex items-center">
-                                <span className="mr-4">{film.category}</span>
-                                {film.episode && (
-                                  <span className="rounded text-xs" style={{ color: '#D1D5DB' }}>
-                                    {film.episode}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          }
-                        />
-                        <div className="flex space-x-2">
-                          <Button
-                            type="primary"
-                            style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
-                            size="small"
-                          >
-                            Resume
-                          </Button>
-                          {!favorites.some(fav => fav._id === film._id) ? (
-                            <Button
-                              icon={<HeartOutlined />}
-                              style={{ backgroundColor: '#374151', borderColor: '#374151', color: 'white' }}
-                              size="small"
-                              onClick={() => handleAddToFavorites(film._id)}
-                            >
-                              Add to Favorites
-                            </Button>
-                          ) : (
-                            <Button
-                              icon={<HeartFilled />}
-                              danger
-                              size="small"
-                              onClick={() => handleRemoveFavorite(film._id)}
-                            >
-                              Remove from Favorites
-                            </Button>
-                          )}
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                )}
-              </TabPane>
-            </Tabs>
+                          </List.Item>
+                        )}
+                      />
+                    )
+                  )
+                }
+              ]}
+            />
 
             {/* Edit Profile Modal */}
             <Modal
@@ -954,6 +1354,9 @@ const Profile: NextPage = () => {
 
       <style jsx global>{`
         /* Custom styles */
+        .profile-tabs .ant-tabs-tab {
+          color: white !important; /* Make tab text white before clicking */
+        }
         .profile-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
           color: #EF4444 !important;
         }
@@ -980,8 +1383,9 @@ const Profile: NextPage = () => {
         .profile-edit-modal .ant-form-item-label > label {
           color: #D1D5DB;
         }
-        .favorite-card .ant-card-meta-title {
-          color: #F3F4F6;
+        .favorite-card .ant-card-meta-title,
+        .list-item-title {
+          color: white !important;
         }
         
         /* Badge styles */
@@ -1001,7 +1405,7 @@ const Profile: NextPage = () => {
           position: absolute;
           top: 8px;
           left: 8px;
-          background-color: rgba(0, 0, 0, 0.7);
+          background-color: #EF4444;
           color: white;
           font-size: 0.75rem;
           padding: 2px 8px;
@@ -1094,6 +1498,11 @@ const Profile: NextPage = () => {
           align-items: center !important;
           background-color: #EF4444 !important;
           border-color: #EF4444 !important;
+        }
+        
+        /* Watch history anime name styling */
+        .ant-list-item .ant-list-item-meta-title a {
+          color: white !important;
         }
       `}</style>
     </div>
