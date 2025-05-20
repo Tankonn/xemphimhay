@@ -49,7 +49,7 @@ export default function Login() {
       if (data.access_token) {
         // Đăng nhập thành công
         localStorage.setItem("token", data.access_token);
-        alert("login susccess!");
+        // alert("login susccess!");
         // message.success('Login successful!');
         router.push('/home');
       } else {

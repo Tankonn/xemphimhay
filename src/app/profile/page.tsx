@@ -6,7 +6,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, Row, Col, Button, List, Typography, Spin, Tabs, Avatar, Modal, Form, Input, notification } from 'antd';
-import { UserOutlined, EditOutlined, StarOutlined, ClockCircleOutlined, HeartOutlined, HeartFilled, EyeOutlined, LogoutOutlined } from '@ant-design/icons';
+import { UserOutlined, EditOutlined, StarOutlined, ClockCircleOutlined, HeartOutlined, HeartFilled, EyeOutlined, LogoutOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
 
@@ -36,10 +36,18 @@ interface Film {
   isWatched?: boolean;
   isFavorite?: boolean;
   rating?: number;
+  ratingCount?: number;
+  userRating?: number; // Added to track user's rating
   progress?: number;
   timestamp?: string;
   episodeId?: string;
   duration?: string;
+}
+
+interface RatingResponse {
+  success: boolean;
+  message: string;
+  rating: number;
 }
 
 const Profile: NextPage = () => {
@@ -54,6 +62,9 @@ const Profile: NextPage = () => {
   const [favoriteModalData, setFavoriteModalData] = useState<{film: Film | null, action: 'add' | 'remove'}>({film: null, action: 'add'});
   const [loginRequiredModalVisible, setLoginRequiredModalVisible] = useState<boolean>(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
+  const [confirmRemoveModalVisible, setConfirmRemoveModalVisible] = useState<boolean>(false);
+  const [filmToRemove, setFilmToRemove] = useState<Film | null>(null);
+  const [loadingFavorite, setLoadingFavorite] = useState<string | null>(null);
   const [form] = Form.useForm();
   const router = useRouter();
 
@@ -118,10 +129,22 @@ const Profile: NextPage = () => {
         favoriteCount: userData.favoriteCount || 0
       });
 
-      // Fetch favorite movies and watch history
-      // Pass the userId explicitly instead of relying on user state
-      await fetchFavorites(token, userId);
-      await fetchWatchHistory(token);
+      // Fetch favorite movies and watch history - but only if we have a valid userId
+      if (userId) {
+        try {
+          await fetchFavorites(token, userId);
+        } catch (favError) {
+          console.error('Error in fetchFavorites:', favError);
+          // Don't throw, continue with other fetches
+        }
+        
+        try {
+          await fetchWatchHistory(token);
+        } catch (histError) {
+          console.error('Error in fetchWatchHistory:', histError);
+          // Don't throw, continue with rendering
+        }
+      }
 
       setError(null);
     } catch (err) {
@@ -132,7 +155,7 @@ const Profile: NextPage = () => {
         return; // Already handled by pushing to login
       }
       
-      // Use mock data as fallback if API fails
+      // Use mock data as fallback if API fails - directly set states instead of calling another function
       setUser({
         _id: '1',
         username: 'anime_lover',
@@ -144,8 +167,9 @@ const Profile: NextPage = () => {
         favoriteCount: 12
       });
 
-      // Set mock favorites and watch history
-      setMockData();
+      // Set empty arrays instead of mock data to prevent loops
+      setFavorites([]);
+      setWatchHistory([]);
     } finally {
       setLoading(false);
     }
@@ -192,7 +216,9 @@ const Profile: NextPage = () => {
       });
     } catch (err) {
       console.error('Error fetching favorites:', err);
-      setMockData(); // Fallback to mock data
+      // Don't call setMockData() here to avoid potential infinite loops
+      // Just set empty favorites array if there's an error
+      setFavorites([]);
     }
   };
 
@@ -202,6 +228,7 @@ const Profile: NextPage = () => {
       const userId = localStorage.getItem('userId');
       if (!userId) {
         console.error('No user ID available for fetching watch history');
+        setWatchHistory([]);
         return;
       }
 
@@ -273,7 +300,8 @@ const Profile: NextPage = () => {
       }
     } catch (err) {
       console.error('Error fetching watch history:', err);
-      // Will use mock data if this fails
+      // Set empty watch history instead of calling setMockData
+      setWatchHistory([]);
     }
   };
 
@@ -488,6 +516,9 @@ const Profile: NextPage = () => {
   // Function to add a film to favorites
   const handleAddToFavorites = async (movieId: string) => {
     try {
+      // Set loading state for this specific movie
+      setLoadingFavorite(movieId);
+      
       const token = localStorage.getItem('token');
       if (!token) {
         // Find the film data to display in the login required modal
@@ -503,6 +534,7 @@ const Profile: NextPage = () => {
             duration: 3
           });
         }
+        setLoadingFavorite(null); // Clear loading state
         return;
       }
 
@@ -514,6 +546,7 @@ const Profile: NextPage = () => {
           placement: 'topRight',
           duration: 3
         });
+        setLoadingFavorite(null); // Clear loading state
         return;
       }
 
@@ -526,6 +559,7 @@ const Profile: NextPage = () => {
           placement: 'topRight',
           duration: 2
         });
+        setLoadingFavorite(null); // Clear loading state
         return;
       }
 
@@ -556,6 +590,9 @@ const Profile: NextPage = () => {
       // Refresh favorites list
       await fetchFavorites(token, userId.toString());
       
+      // Clear loading state
+      setLoadingFavorite(null);
+      
       // Show modal if film data exists
       if (filmToAdd) {
         setFavoriteModalData({
@@ -579,12 +616,43 @@ const Profile: NextPage = () => {
         placement: 'topRight',
         duration: 3
       });
+      setLoadingFavorite(null); // Clear loading state in case of error
     }
   };
 
   // Function to remove a film from favorites
   const handleRemoveFavorite = async (filmId: string) => {
+    // Set loading state for this specific film
+    setLoadingFavorite(filmId);
+    
+    // Find the film data to use in the notification before removing
+    const film = favorites.find(f => f._id === filmId);
+    console.log('Film data for remove favorite:', film);
+    
+    if (film) {
+      setFilmToRemove(film);
+      setConfirmRemoveModalVisible(true);
+    } else {
+      notification.error({
+        message: 'Error',
+        description: 'Could not find film information',
+        placement: 'topRight',
+        duration: 3
+      });
+    }
+    
+    // Clear loading state when modal is shown
+    setLoadingFavorite(null);
+  };
+  
+  // Function to confirm removal of a film from favorites
+  const confirmRemoveFavorite = async () => {
+    if (!filmToRemove) return;
+    
     try {
+      // Set loading state for this film
+      setLoadingFavorite(filmToRemove._id);
+      
       const token = localStorage.getItem('token');
       if (!token) {
         notification.error({
@@ -593,14 +661,11 @@ const Profile: NextPage = () => {
           placement: 'topRight',
           duration: 3
         });
+        setLoadingFavorite(null); // Clear loading state
         return;
       }
 
-      // Find the film data to use in the notification before removing
-      const film = favorites.find(f => f._id === filmId);
-      console.log('Film data for remove favorite:', film);
-
-      const response = await fetch(`http://localhost:2000/favorites/${filmId}`, {
+      const response = await fetch(`http://localhost:2000/favorites/${filmToRemove._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -614,7 +679,7 @@ const Profile: NextPage = () => {
       }
 
       // Update local state by removing the deleted favorite
-      setFavorites(favorites.filter(fav => fav._id !== filmId));
+      setFavorites(favorites.filter(fav => fav._id !== filmToRemove._id));
       
       // Update favorite count
       setUser(prev => {
@@ -625,21 +690,18 @@ const Profile: NextPage = () => {
         };
       });
 
-      // Show modal if film data exists
-      if (film) {
-        setFavoriteModalData({
-          film,
-          action: 'remove'
-        });
-        setFavoriteModalVisible(true);
-      } else {
-        notification.success({
-          message: 'Success',
-          description: 'Removed from favorites successfully!',
-          placement: 'topRight',
-          duration: 2
-        });
-      }
+      // Close confirmation modal
+      setConfirmRemoveModalVisible(false);
+      
+      // Clear loading state
+      setLoadingFavorite(null);
+      
+      // Show success modal
+      setFavoriteModalData({
+        film: filmToRemove,
+        action: 'remove'
+      });
+      setFavoriteModalVisible(true);
     } catch (err) {
       console.error('Error removing from favorites:', err);
       notification.error({
@@ -648,6 +710,7 @@ const Profile: NextPage = () => {
         placement: 'topRight',
         duration: 3
       });
+      setLoadingFavorite(null); // Clear loading state in case of error
     }
   };
 
@@ -826,6 +889,57 @@ const Profile: NextPage = () => {
         </div>
       </Modal>
 
+      {/* Confirm Remove Favorite Modal */}
+      <Modal
+        open={confirmRemoveModalVisible}
+        onCancel={() => setConfirmRemoveModalVisible(false)}
+        footer={[
+          <Button 
+            key="cancel" 
+            onClick={() => setConfirmRemoveModalVisible(false)}
+          >
+            Cancel
+          </Button>,
+          <Button 
+            key="remove" 
+            type="primary" 
+            danger
+            onClick={confirmRemoveFavorite}
+          >
+            Remove
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <HeartOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Remove from Favorites
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className="favorites-modal-remove"
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        <div className="flex flex-col sm:flex-row items-center sm:items-start">
+          {filmToRemove && (
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(filmToRemove.image)} 
+                alt={filmToRemove.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="text-center sm:text-left">
+            <h3 className="text-lg font-bold mb-1">
+              {filmToRemove ? filmToRemove.name : 'This anime'}
+            </h3>
+            <p>Are you sure you want to remove this anime from your favorites?</p>
+            <p className="mt-2">This action cannot be undone.</p>
+          </div>
+        </div>
+      </Modal>
+
       <header className="bg-gray-900 border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -875,14 +989,30 @@ const Profile: NextPage = () => {
                   <Button
                     type="primary"
                     className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '1px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/login')}>
                     Sign In
                   </Button>
                   <Button
                     type="primary"
-                    className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    className="ml-8"
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '1px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/register')}
                   >
                     Sign Up
@@ -1040,7 +1170,7 @@ const Profile: NextPage = () => {
                                       <Button
                                         type="primary"
                                         danger
-                                        icon={<HeartOutlined />}
+                                        icon={loadingFavorite === film._id ? <LoadingOutlined /> : <HeartOutlined />}
                                         className="rounded-full heart-btn"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1051,7 +1181,7 @@ const Profile: NextPage = () => {
                                       <Button
                                         type="primary"
                                         danger
-                                        icon={<HeartFilled />}
+                                        icon={loadingFavorite === film._id ? <LoadingOutlined /> : <HeartFilled />}
                                         className="rounded-full heart-btn"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1062,9 +1192,12 @@ const Profile: NextPage = () => {
                                   </div>
                                   {/* Rating badge - on the right */}
                                   {film.rating && (
-                                    <div className="rating-badge">
+                                    <div className="rating-badge" title={`${film.rating.toFixed(1)}/5 from ${film.ratingCount || 0} ratings`}>
                                       <StarOutlined className="star-icon" />
                                       <span>{film.rating.toFixed(1)}</span>
+                                      <span className="text-xs ml-1">
+                                        ({film.ratingCount ? (film.ratingCount > 999 ? `${(film.ratingCount / 1000).toFixed(1)}k` : film.ratingCount) : '0'})
+                                      </span>
                                     </div>
                                   )}
                                 </div>
@@ -1129,7 +1262,7 @@ const Profile: NextPage = () => {
                         <Button
                           type="primary"
                           style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
-                          onClick={() => router.push('/')}
+                          onClick={() => router.push('/home')}
                         >
                           Browse Anime
                         </Button>
@@ -1204,7 +1337,7 @@ const Profile: NextPage = () => {
                               </Button>
                               {!favorites.some(fav => fav._id === film._id) ? (
                                 <Button
-                                  icon={<HeartOutlined />}
+                                  icon={loadingFavorite === film._id ? <LoadingOutlined /> : <HeartOutlined />}
                                   style={{ backgroundColor: '#374151', borderColor: '#374151', color: 'white' }}
                                   size="small"
                                   onClick={() => handleAddToFavorites(film._id)}
@@ -1213,7 +1346,7 @@ const Profile: NextPage = () => {
                                 </Button>
                               ) : (
                                 <Button
-                                  icon={<HeartFilled />}
+                                  icon={loadingFavorite === film._id ? <LoadingOutlined /> : <HeartFilled />}
                                   danger
                                   size="small"
                                   onClick={() => handleRemoveFavorite(film._id)}
@@ -1361,14 +1494,7 @@ const Profile: NextPage = () => {
           color: #EF4444 !important;
         }
         .profile-tabs .ant-tabs-ink-bar {
-          background: #EF4444 !important;
-        }
-        .profile-tabs .ant-tabs-tab:hover {
-          color: #EF4444;
-        }
-        .profile-edit-modal .ant-modal-content {
-          background-color: #1F2937;
-          color: white;
+         
         }
         .profile-edit-modal .ant-modal-header {
           background-color: #1F2937;
@@ -1459,14 +1585,23 @@ const Profile: NextPage = () => {
           border-radius: 4px;
           display: flex;
           align-items: center;
+          min-width: 60px; /* Ensure enough space for count */
           z-index: 5;
         }
         .rating-badge .star-icon {
           color: #FBBF24;
+          margin-right: 4px;
+          flex-shrink: 0;
         }
         .rating-badge span {
           color: #FBBF24;
           font-weight: bold;
+          white-space: nowrap;
+        }
+        .rating-badge .text-xs {
+          font-size: 0.75rem;
+          color: #D1D5DB;
+          font-weight: normal;
         }
         
         /* Favorite button styles */
@@ -1503,6 +1638,37 @@ const Profile: NextPage = () => {
         /* Watch history anime name styling */
         .ant-list-item .ant-list-item-meta-title a {
           color: white !important;
+        }
+
+        /* Custom rating stars styling */
+        .custom-rate .ant-rate-star {
+          margin-right: 4px;
+        }
+
+        .custom-rate .ant-rate-star-first,
+        .custom-rate .ant-rate-star-second {
+          color: #FBBF24;
+        }
+
+        /* Enhanced hover effect for star ratings */
+        .custom-rate .ant-rate-star:not(.ant-rate-star-full):hover {
+          transform: scale(1.4);
+          transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        .custom-rate .ant-rate-star-first:hover,
+        .custom-rate .ant-rate-star-second:hover {
+          color: #F59E0B;
+          filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5));
+        }
+
+        /* Ensure rating badge displays properly */
+        .rating-badge span.text-xs {
+          display: inline-block;
+          font-size: 0.75rem;
+          color: #D1D5DB;
+          font-weight: normal;
+          margin-left: 3px;
         }
       `}</style>
     </div>

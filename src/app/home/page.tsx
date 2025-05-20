@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu, notification, Modal } from 'antd';
-import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined, StarOutlined, HeartOutlined, HeartFilled, CheckCircleFilled } from '@ant-design/icons';
+import { Carousel, Tabs, Card, Row, Col, Button, List, Typography, Spin, Dropdown, Menu, notification, Modal, Rate } from 'antd';
+import { RightOutlined, EyeOutlined, LogoutOutlined, UserOutlined, StarOutlined, HeartOutlined, HeartFilled, CheckCircleFilled, LoadingOutlined } from '@ant-design/icons';
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
 
@@ -23,6 +23,8 @@ interface Film {
   episode?: string;
   views?: number;
   rating?: number;
+  ratingCount?: number;
+  userRating?: number;
 }
 
 interface HeroItem {
@@ -45,6 +47,11 @@ const Home: NextPage = () => {
   const [loginRequiredModalVisible, setLoginRequiredModalVisible] = useState<boolean>(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [topViewedFilms, setTopViewedFilms] = useState<Film[]>([]);
+  const [confirmRemoveModalVisible, setConfirmRemoveModalVisible] = useState<boolean>(false);
+  const [filmToRemove, setFilmToRemove] = useState<{id: string, film: Film | null}>({id: '', film: null});
+  const [loadingFavorite, setLoadingFavorite] = useState<string | null>(null);
+  const [ratingFilm, setRatingFilm] = useState<string | null>(null);
+  const [showRatingFor, setShowRatingFor] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -116,6 +123,9 @@ const Home: NextPage = () => {
     e.preventDefault(); // Prevent the Link navigation
     e.stopPropagation(); // Stop event propagation
     
+    // Set loading state for this film
+    setLoadingFavorite(filmId);
+    
     const token = localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     
@@ -132,6 +142,7 @@ const Home: NextPage = () => {
           placement: 'topRight'
         });
       }
+      setLoadingFavorite(null); // Clear loading state
       return;
     }
     
@@ -142,51 +153,20 @@ const Home: NextPage = () => {
       const film = films.find(f => f._id === filmId);
       console.log('Film data for notification:', film);
       
-      // Test notification to ensure it's visible
-      notification.open({
-        message: 'Notification Test',
-        description: 'Testing if notifications are visible',
-        placement: 'topRight',
-        duration: 3,
-        className: 'favorite-notification',
-        style: {
-          zIndex: 9999,
-          backgroundColor: '#f6ffed',
-          border: '1px solid #b7eb8f'
-        }
-      });
-      
       if (isFavorite) {
-        // Remove from favorites
-        const response = await fetch(`http://localhost:2000/favorites/${filmId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          // Update local state
-          setFavorites(favorites.filter(id => id !== filmId));
-          
-          if (film) {
-            // Use modal instead of notification
-            setFavoriteModalData({
-              film,
-              action: 'remove'
-            });
-            setFavoriteModalVisible(true);
-          } else {
-            notification.open({
-              message: 'Success',
-              description: 'Removed from favorites',
-              placement: 'topRight',
-              duration: 2
-            });
-          }
+        // Show confirmation dialog for removal
+        if (film) {
+          setFilmToRemove({id: filmId, film});
+          setConfirmRemoveModalVisible(true);
+          setLoadingFavorite(null); // Clear loading state when showing modal
         } else {
-          throw new Error('Failed to remove from favorites');
+          notification.error({
+            message: 'Error',
+            description: 'Could not find film information',
+            placement: 'topRight',
+            duration: 3
+          });
+          setLoadingFavorite(null); // Clear loading state
         }
       } else {
         // Add to favorites
@@ -205,6 +185,9 @@ const Home: NextPage = () => {
         if (response.ok) {
           // Update local state
           setFavorites([...favorites, filmId]);
+          
+          // Clear loading state
+          setLoadingFavorite(null);
           
           // Use modal instead of notification
           if (film) {
@@ -240,6 +223,58 @@ const Home: NextPage = () => {
       notification.open({
         message: 'Error',
         description: error instanceof Error ? error.message : 'Failed to update favorites',
+        placement: 'topRight'
+      });
+      setLoadingFavorite(null); // Clear loading state in case of error
+    }
+  };
+
+  // Function to confirm remove favorite
+  const confirmRemoveFavorite = async () => {
+    if (!filmToRemove.id) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Remove from favorites
+      const response = await fetch(`http://localhost:2000/favorites/${filmToRemove.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        // Update local state
+        setFavorites(favorites.filter(id => id !== filmToRemove.id));
+        
+        // Close confirmation modal
+        setConfirmRemoveModalVisible(false);
+        
+        if (filmToRemove.film) {
+          // Show removal success modal
+          setFavoriteModalData({
+            film: filmToRemove.film,
+            action: 'remove'
+          });
+          setFavoriteModalVisible(true);
+        } else {
+          notification.open({
+            message: 'Success',
+            description: 'Removed from favorites',
+            placement: 'topRight',
+            duration: 2
+          });
+        }
+      } else {
+        throw new Error('Failed to remove from favorites');
+      }
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      notification.open({
+        message: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to remove from favorites',
         placement: 'topRight'
       });
     }
@@ -438,6 +473,122 @@ const Home: NextPage = () => {
     },
   ];
 
+  // Function to handle rating a film
+  const handleRateFilm = async (filmId: string, value: number) => {
+    if (!isLoggedIn) {
+      // Find the film data to display in the login required modal
+      const film = films.find(f => f._id === filmId);
+      if (film) {
+        setSelectedFilm(film);
+        setLoginRequiredModalVisible(true);
+      } else {
+        notification.open({
+          message: 'Login Required',
+          description: 'Please log in to rate movies.',
+          placement: 'topRight'
+        });
+      }
+      return;
+    }
+    
+    // Get userId from localStorage
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      notification.error({
+        message: 'Authentication Error',
+        description: 'Unable to identify user. Please try logging in again.',
+        placement: 'topRight'
+      });
+      return;
+    }
+    
+    // Set loading state for this film's rating
+    setRatingFilm(filmId);
+    
+    try {
+      console.log(`Submitting rating ${value} for film ${filmId} by user ${userId}`);
+      
+      const response = await fetch('http://localhost:2000/movies/rate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          movieId: filmId,
+          rating: value,
+          userId: userId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to rate movie');
+      }
+      
+      const data = await response.json();
+      console.log('Rating response:', data);
+      
+      if (data.success) {
+        // Get the current film from state to calculate appropriate updates
+        const currentFilm = films.find(f => f._id === filmId);
+        
+        // Determine new rating and count values
+        const newRating = data.rating !== undefined ? data.rating : (currentFilm?.rating || 0);
+        const newRatingCount = data.ratingCount !== undefined ? data.ratingCount : ((currentFilm?.ratingCount || 0) + 1);
+        
+        console.log(`Updating film rating from ${currentFilm?.rating} to ${newRating}, count from ${currentFilm?.ratingCount || 0} to ${newRatingCount}`);
+        
+        // Update films array with new rating
+        setFilms(prev => 
+          prev.map(film => 
+            film._id === filmId 
+              ? { 
+                  ...film, 
+                  userRating: value, // Store user's rating
+                  rating: newRating, // Update average rating
+                  ratingCount: newRatingCount // Update rating count
+                } 
+              : film
+          )
+        );
+        
+        // Also update top viewed films if this film is there
+        setTopViewedFilms(prev => 
+          prev.map(film => 
+            film._id === filmId 
+              ? { 
+                  ...film, 
+                  userRating: value,
+                  rating: newRating,
+                  ratingCount: newRatingCount
+                } 
+              : film
+          )
+        );
+        
+        notification.success({
+          message: 'Rating Submitted',
+          description: 'Thank you for rating this film!',
+          placement: 'topRight',
+          duration: 3
+        });
+      } else {
+        throw new Error(data.message || 'Failed to rate film');
+      }
+    } catch (error) {
+      console.error('Error rating film:', error);
+      notification.error({
+        message: 'Rating Failed',
+        description: error instanceof Error ? error.message : 'Failed to submit rating',
+        placement: 'topRight',
+        duration: 3
+      });
+    } finally {
+      setRatingFilm(null);
+    }
+  };
+
   return (
     <div className="bg-gray-900 text-gray-200 min-h-screen">
       <Head>
@@ -558,6 +709,57 @@ const Home: NextPage = () => {
         </div>
       </Modal>
 
+      {/* Confirm Remove Favorite Modal */}
+      <Modal
+        open={confirmRemoveModalVisible}
+        onCancel={() => setConfirmRemoveModalVisible(false)}
+        footer={[
+          <Button 
+            key="cancel" 
+            onClick={() => setConfirmRemoveModalVisible(false)}
+          >
+            Cancel
+          </Button>,
+          <Button 
+            key="remove" 
+            type="primary" 
+            danger
+            onClick={confirmRemoveFavorite}
+          >
+            Remove
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <HeartOutlined style={{ color: '#EF4444', marginRight: '8px' }} /> Remove from Favorites
+          </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        className="favorites-modal-remove"
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        <div className="flex flex-col sm:flex-row items-center sm:items-start">
+          {filmToRemove.film && (
+            <div className="w-20 h-20 mx-auto sm:mx-0 sm:mr-4 mb-4 sm:mb-0 overflow-hidden rounded">
+              <img 
+                src={getImageUrl(filmToRemove.film.image)} 
+                alt={filmToRemove.film.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="text-center sm:text-left">
+            <h3 className="text-lg font-bold mb-1">
+              {filmToRemove.film ? filmToRemove.film.name : 'This anime'}
+            </h3>
+            <p>Are you sure you want to remove this anime from your favorites?</p>
+            <p className="mt-2">This action cannot be undone.</p>
+          </div>
+        </div>
+      </Modal>
+
       <header className="bg-gray-900 border-b border-gray-800">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -607,14 +809,30 @@ const Home: NextPage = () => {
                   <Button
                     type="primary"
                     className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '2px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/login')}>
                     Sign In
                   </Button>
                   <Button
                     type="primary"
                     className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '2px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/register')}
                   >
                     Sign Up
@@ -727,12 +945,12 @@ const Home: NextPage = () => {
                                     </div>
                                   )}
                                   {/* Views counter */}
-                                  {film.views && (
+                                  {/* {film.views && (
                                     <div className="views-badge">
                                       <EyeOutlined className="view-icon" /> 
                                       <span>{film.views.toLocaleString()}</span>
                                     </div>
-                                  )}
+                                  )} */}
                                   {/* Heart icon on the left - now matches profile page style */}
                                   <div 
                                     className="absolute bottom-2 left-2 favorite-btn"
@@ -741,7 +959,9 @@ const Home: NextPage = () => {
                                     <Button
                                       type="primary"
                                       danger={favorites.includes(film._id)}
-                                      icon={favorites.includes(film._id) ? <HeartFilled /> : <HeartOutlined />}
+                                      icon={favorites.includes(film._id) ? 
+                                        (loadingFavorite === film._id ? <LoadingOutlined /> : <HeartFilled />) : 
+                                        (loadingFavorite === film._id ? <LoadingOutlined /> : <HeartOutlined />)}
                                       className="rounded-full heart-btn"
                                       style={{
                                         backgroundColor: favorites.includes(film._id) ? '#EF4444' : 'rgba(0, 0, 0, 0.7)',
@@ -749,10 +969,13 @@ const Home: NextPage = () => {
                                       }}
                                     />
                                   </div>
-                                  {/* Rating badge on the right */}
-                                  <div className="rating-badge">
+                                  {/* Rating badge - on the right */}
+                                  <div className="rating-badge" title={`${film.rating?.toFixed(1) || '0.0'}/5 from ${film.ratingCount || 0} ratings`}>
                                     <StarOutlined className="star-icon" />
-                                    <span>{film.rating?.toFixed(1) || '4.5'}</span>
+                                    <span>{film.rating?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-xs ml-1">
+                                      ({film.ratingCount ? (film.ratingCount > 999 ? `${(film.ratingCount / 1000).toFixed(1)}k` : film.ratingCount) : '0'})
+                                    </span>
                                   </div>
                                 </div>
                               }
@@ -761,13 +984,34 @@ const Home: NextPage = () => {
                                 title={<span style={{ color: 'white' }}>{film.name}</span>}
                                 className="text-center"
                                 description={
-                                  <div className="flex justify-between items-center mt-1" style={{ color: '#9CA3AF' }}>
-                                    <span>{film.category || 'Action'}</span>
-                                    {film.views && (
-                                      <span className="flex items-center">
-                                        <EyeOutlined style={{ marginRight: '4px' }} /> {film.views.toLocaleString()}
-                                      </span>
-                                    )}
+                                  <div>
+                                    <div className="flex justify-between items-center mt-1" style={{ color: '#9CA3AF' }}>
+                                      <span>{film.category || 'Action'}</span>
+                                      {film.views && (
+                                        <span className="flex items-center">
+                                          <EyeOutlined style={{ marginRight: '4px' }} /> {film.views.toLocaleString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Add rating component with hover effect
+                                    <div className="mt-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                      <Rate 
+                                        value={film.userRating || 0}
+                                        onChange={(value) => handleRateFilm(film._id, value)}
+                                        allowHalf
+                                        disabled={ratingFilm === film._id}
+                                        className="custom-rate home-rate"
+                                        style={{ fontSize: '14px' }}
+                                        tooltips={['Poor', 'Fair', 'Good', 'Very Good', 'Excellent']}
+                                      />
+                                      {ratingFilm === film._id && <LoadingOutlined className="ml-1" />}
+                                      {film.userRating && (
+                                        <div className="text-xs text-gray-400 mt-1">
+                                          Your rating: {film.userRating}
+                                        </div>
+                                      )}
+                                    </div> */}
                                   </div>
                                 }
                               />
@@ -1115,14 +1359,23 @@ const Home: NextPage = () => {
           border-radius: 4px;
           display: flex;
           align-items: center;
+          min-width: 60px; /* Ensure enough space for count */
           z-index: 5;
         }
         .rating-badge .star-icon {
           color: #FBBF24;
+          margin-right: 4px;
+          flex-shrink: 0;
         }
         .rating-badge span {
           color: #FBBF24;
           font-weight: bold;
+          white-space: nowrap;
+        }
+        .rating-badge .text-xs {
+          font-size: 0.75rem;
+          color: #D1D5DB;
+          font-weight: normal;
         }
         
         /* Heart button styles */
@@ -1152,6 +1405,137 @@ const Home: NextPage = () => {
           display: flex !important;
           justify-content: center !important;
           align-items: center !important;
+        }
+        
+        /* Rating styles for home page */
+        .home-rate {
+          display: inline-flex !important;
+        }
+        
+        .home-rate .ant-rate-star {
+          margin-right: 4px;
+        }
+        
+        /* Custom rating stars styling */
+        .custom-rate .ant-rate-star {
+          cursor: pointer;
+          margin-right: 4px;
+          transition: transform 0.2s, color 0.2s;
+        }
+        
+        .custom-rate .ant-rate-star-first,
+        .custom-rate .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4); /* Lighter unfilled color */
+        }
+        
+        /* Fill stars on hover - this fills the entire star */
+        .custom-rate .ant-rate-star:hover .ant-rate-star-first,
+        .custom-rate .ant-rate-star:hover .ant-rate-star-second {
+          color: #F59E0B !important; /* Filled color on hover */
+        }
+        
+        /* Fill stars before the hovered one */
+        .custom-rate .ant-rate-star:hover ~ .ant-rate-star .ant-rate-star-first,
+        .custom-rate .ant-rate-star:hover ~ .ant-rate-star .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4) !important; /* Keep them unfilled */
+        }
+        
+        /* Half star hover effect */
+        .custom-rate .ant-rate-star:hover .ant-rate-star-first {
+          color: #F59E0B !important; /* Fill the first half on hover */
+        }
+        
+        /* Support for half-star rating */
+        .custom-rate .ant-rate-star-half:hover .ant-rate-star-first {
+          color: #F59E0B !important; /* Fill only the first half */
+        }
+        
+        .custom-rate .ant-rate-star-half:hover .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4) !important; /* Keep second half unfilled */
+        }
+        
+        /* Keep the selected stars filled */
+        .custom-rate .ant-rate-star-full .ant-rate-star-first,
+        .custom-rate .ant-rate-star-full .ant-rate-star-second {
+          color: #FBBF24 !important; /* Bright gold for filled stars */
+        }
+        
+        /* Half star styling for selected */
+        .custom-rate .ant-rate-star-half .ant-rate-star-first {
+          color: #FBBF24 !important; /* Keep half stars filled */
+        }
+        
+        /* Enhanced hover effect for star ratings */
+        .custom-rate .ant-rate-star:hover {
+          transform: scale(1.4);
+          transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        
+        /* Ensure rating count is always visible */
+        .rating-badge span.text-xs {
+          display: inline-block;
+          font-size: 0.75rem;
+          color: #D1D5DB;
+          font-weight: normal;
+          margin-left: 3px;
+        }
+        
+        /* Style for the home page rating component */
+        .home-rate {
+          display: inline-flex !important;
+        }
+        
+        /* Add tooltip style */
+        .ant-tooltip-inner {
+          background-color: #1F2937;
+          color: white;
+          border: 1px solid #374151;
+          font-size: 12px;
+        }
+        
+        /* Rating hover effect */
+        .rating-collapsed {
+          cursor: pointer;
+          padding: 4px 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          transition: all 0.2s ease;
+        }
+        
+        .rating-collapsed:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .rating-trigger {
+          color: #FBBF24;
+          font-size: 16px;
+          margin-right: 2px;
+        }
+        
+        .rating-expand {
+          background-color: #1F2937;
+          border-radius: 4px;
+          padding: 4px 8px;
+          transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+          transform-origin: center bottom;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .rating-active {
+          animation: pop-up 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        
+        @keyframes pop-up {
+          0% {
+            transform: scale(0.8);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
         }
       `}</style>
     </div>

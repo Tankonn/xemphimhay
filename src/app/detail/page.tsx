@@ -35,7 +35,8 @@ import {
   DislikeOutlined,
   CheckCircleFilled,
   ArrowLeftOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  LoadingOutlined
 } from '@ant-design/icons';
 
 const { Title, Paragraph, Text } = Typography;
@@ -57,6 +58,7 @@ interface Anime {
   quality?: string;
   views?: number;
   rating?: number;
+  ratingCount?: number;
   studio?: string;
 }
 
@@ -112,6 +114,10 @@ const AnimeDetail = () => {
   const [favoriteModalVisible, setFavoriteModalVisible] = useState<boolean>(false);
   const [favoriteModalData, setFavoriteModalData] = useState<{action: 'add' | 'remove'}>({action: 'add'});
   const [loginRequiredModalVisible, setLoginRequiredModalVisible] = useState<boolean>(false);
+  const [loadingFavorite, setLoadingFavorite] = useState<boolean>(false);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [isRating, setIsRating] = useState<boolean>(false);
+  const [showRatingStars, setShowRatingStars] = useState<boolean>(false);
 
   useEffect(() => {
     // Check login status
@@ -126,15 +132,43 @@ const AnimeDetail = () => {
 
     // Fetch anime details if we have an ID
     if (animeId) {
-      fetchAnimeDetails(animeId);
-      fetchEpisodes(animeId);
-      fetchRelatedAnime(animeId);
-      fetchReviews(animeId);
+      const fetchAllData = async () => {
+        try {
+          setLoading(true);
+          
+          // Fetch anime details first
+          await fetchAnimeDetails(animeId);
+          
+          // These can run in parallel
+          const episodesPromise = fetchEpisodes(animeId);
+          const relatedPromise = fetchRelatedAnime(animeId);
+          const reviewsPromise = fetchReviews(animeId);
+          
+          // Wait for all to complete
+          await Promise.all([
+            episodesPromise,
+            relatedPromise,
+            reviewsPromise
+          ]);
+          
+          // Check favorite status if logged in
+          if (token) {
+            try {
+              await checkFavoriteStatus(animeId, token);
+            } catch (favError) {
+              console.error('Error checking favorite status:', favError);
+              // Don't throw, continue with rendering
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching anime data:', err);
+          setError('Failed to load anime details. Please try again later.');
+        } finally {
+          setLoading(false);
+        }
+      };
       
-      // Check if this anime is in user's favorites
-      if (token) {
-        checkFavoriteStatus(animeId, token);
-      }
+      fetchAllData();
       
       // Check if we should resume watching
       const resumeParam = searchParams.get('resume');
@@ -189,7 +223,6 @@ const AnimeDetail = () => {
   // Fetch anime details
   const fetchAnimeDetails = async (id: string) => {
     try {
-      setLoading(true);
       // Replace with your actual API endpoint
       const response = await fetch(`http://localhost:2000/movies/${id}`);
       
@@ -200,14 +233,32 @@ const AnimeDetail = () => {
       const data = await response.json();
       setAnime(data);
       setError(null);
+      return data;
     } catch (err) {
       console.error('Error fetching anime details:', err);
-      setError('Failed to load anime details. Please try again later.');
       
-      // Use mock data as fallback
-      setMockAnimeData(id);
-    } finally {
-      setLoading(false);
+      // Create mock data directly instead of calling another function
+      const mockAnime: Anime = {
+        _id: id,
+        name: 'Demon Slayer: Kimetsu no Yaiba',
+        image: '/img/anime/details-pic.jpg',
+        cover: '/img/anime/details-bg.jpg',
+        trailer: 'https://www.youtube.com/watch?v=VQGCKyvzIM4',
+        description: 'Tanjiro Kamado\'s life changed forever when his family was slaughtered by demons, and his sister Nezuko was transformed into one. Now, he hunts demons as a member of the Demon Slayer Corps, seeking a way to turn his sister back into a human and avenge his family.',
+        category: 'Action, Fantasy, Historical',
+        status: 'Ongoing',
+        year: '2019',
+        episodes: 26,
+        duration: '24 min/ep',
+        quality: 'HD',
+        views: 9480000,
+        rating: 4.9,
+        ratingCount: 1000,
+        studio: 'ufotable'
+      };
+      
+      setAnime(mockAnime);
+      return mockAnime;
     }
   };
 
@@ -294,29 +345,6 @@ const AnimeDetail = () => {
     }
   };
   
-  // Set mock anime data for fallback
-  const setMockAnimeData = (id: string) => {
-    const mockAnime: Anime = {
-      _id: id,
-      name: 'Demon Slayer: Kimetsu no Yaiba',
-      image: '/img/anime/details-pic.jpg',
-      cover: '/img/anime/details-bg.jpg',
-      trailer: 'https://www.youtube.com/watch?v=VQGCKyvzIM4',
-      description: 'Tanjiro Kamado\'s life changed forever when his family was slaughtered by demons, and his sister Nezuko was transformed into one. Now, he hunts demons as a member of the Demon Slayer Corps, seeking a way to turn his sister back into a human and avenge his family.',
-      category: 'Action, Fantasy, Historical',
-      status: 'Ongoing',
-      year: '2019',
-      episodes: 26,
-      duration: '24 min/ep',
-      quality: 'HD',
-      views: 9480000,
-      rating: 4.9,
-      studio: 'ufotable'
-    };
-    
-    setAnime(mockAnime);
-  };
-  
   // Set mock episodes data
   const setMockEpisodes = () => {
     const mockEpisodes: Episode[] = Array.from({ length: 26 }, (_, i) => ({
@@ -394,6 +422,9 @@ const AnimeDetail = () => {
       return;
     }
     
+    // Set loading state
+    setLoadingFavorite(true);
+    
     const token = localStorage.getItem('token');
     const userId = localStorage.getItem('userId');
     
@@ -403,6 +434,7 @@ const AnimeDetail = () => {
         description: 'Unable to update favorites. Please try logging in again.',
         placement: 'topRight'
       });
+      setLoadingFavorite(false);
       return;
     }
     
@@ -419,6 +451,7 @@ const AnimeDetail = () => {
         
         if (response.ok) {
           setIsFavorite(false);
+          setLoadingFavorite(false);
           setFavoriteModalData({ action: 'remove' });
           setFavoriteModalVisible(true);
         } else {
@@ -440,6 +473,7 @@ const AnimeDetail = () => {
         
         if (response.ok) {
           setIsFavorite(true);
+          setLoadingFavorite(false);
           setFavoriteModalData({ action: 'add' });
           setFavoriteModalVisible(true);
         } else {
@@ -453,6 +487,7 @@ const AnimeDetail = () => {
         description: err instanceof Error ? err.message : 'Failed to update favorites',
         placement: 'topRight'
       });
+      setLoadingFavorite(false);
     }
   };
   
@@ -714,6 +749,102 @@ const AnimeDetail = () => {
     }
   ];
 
+  // Rate movie
+  const handleRateMovie = async (value: number) => {
+    if (!isLoggedIn) {
+      setLoginRequiredModalVisible(true);
+      return;
+    }
+
+    if (!animeId) {
+      notification.error({
+        message: 'Error',
+        description: 'Unable to rate movie. Missing movie ID.',
+        placement: 'topRight'
+      });
+      return;
+    }
+
+    // Get userId from localStorage
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      notification.error({
+        message: 'Authentication Error',
+        description: 'Unable to identify user. Please try logging in again.',
+        placement: 'topRight'
+      });
+      return;
+    }
+
+    setIsRating(true);
+    
+    try {
+      console.log(`Submitting rating ${value} for movie ${animeId} by user ${userId}`);
+      
+      const response = await fetch('http://localhost:2000/movies/rate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          movieId: animeId,
+          rating: value,
+          userId: userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to rate movie');
+      }
+
+      const data = await response.json();
+      console.log('Rating response data:', data);
+      
+      if (data.success) {
+        // Update the local state with the user's rating
+        setUserRating(value);
+        
+        // Update the anime's overall rating and rating count
+        setAnime(prev => {
+          if (!prev) return null;
+          
+          const newRating = data.rating !== undefined ? data.rating : prev.rating;
+          const newRatingCount = data.ratingCount !== undefined ? data.ratingCount : (prev.ratingCount || 0) + 1;
+          
+          // Log the update
+          console.log(`Updating movie rating display from ${prev.rating} to ${newRating}, count from ${prev.ratingCount || 0} to ${newRatingCount}`);
+          
+          return {
+            ...prev,
+            rating: newRating,
+            ratingCount: newRatingCount
+          };
+        });
+        
+        notification.success({
+          message: 'Rating Submitted',
+          description: 'Thank you for rating this anime!',
+          placement: 'topRight',
+          duration: 3
+        });
+      } else {
+        throw new Error(data.message || 'Failed to rate movie');
+      }
+    } catch (error) {
+      console.error('Error rating movie:', error);
+      notification.error({
+        message: 'Rating Failed',
+        description: error instanceof Error ? error.message : 'Failed to submit rating',
+        placement: 'topRight',
+        duration: 3
+      });
+    } finally {
+      setIsRating(false);
+    }
+  };
+
   return (
     <div className="bg-gray-900 text-gray-200 min-h-screen">
       {/* Favorite Notification Modal */}
@@ -878,14 +1009,30 @@ const AnimeDetail = () => {
                   <Button
                     type="primary"
                     className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '2px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/login')}>
                     Sign In
                   </Button>
                   <Button
                     type="primary"
                     className="ml-4"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                    style={{ 
+                      backgroundColor: '#EF4444', 
+                      borderColor: '#EF4444',
+                      padding: '0 20px',
+                      height: '40px',
+                      borderRadius: '4px',
+                      borderWidth: '2px',
+                      fontWeight: 'bold'
+                    }}
                     onClick={() => router.push('/register')}
                   >
                     Sign Up
@@ -987,7 +1134,9 @@ const AnimeDetail = () => {
                         </Button>
                         <Button
                           type="primary"
-                          icon={isFavorite ? <HeartFilled /> : <HeartOutlined />}
+                          icon={loadingFavorite ? 
+                            <LoadingOutlined /> : 
+                            (isFavorite ? <HeartFilled style={{ color: 'white' }} /> : <HeartOutlined style={{ color: 'white' }} />)}
                           size="large"
                           onClick={toggleFavorite}
                           style={{ 
@@ -1019,8 +1168,43 @@ const AnimeDetail = () => {
                     <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2 mt-4">
                       <div className="flex items-center">
                         <StarOutlined className="text-yellow-500 mr-1" />
-                        <span className="text-yellow-500 font-bold mr-1">{anime.rating}</span>
+                        <span className="text-yellow-500 font-bold mr-1">{anime?.rating?.toFixed(1) || '0.0'}</span>
                         <span className="text-gray-400">/ 5</span>
+                        <span className="text-gray-400 ml-1">
+                          ({anime?.ratingCount ? (anime.ratingCount > 999 
+                            ? `${(anime.ratingCount / 1000).toFixed(1)}k` 
+                            : anime.ratingCount) : '0'} {anime?.ratingCount === 1 ? 'rating' : 'ratings'})
+                        </span>
+                        
+                        <div className="ml-4 flex items-center">
+                          <div 
+                            className="rating-container relative"
+                            onMouseEnter={() => setShowRatingStars(true)}
+                            onMouseLeave={() => setShowRatingStars(false)}
+                          >
+                            {(showRatingStars || userRating) ? (
+                              // Show full rating component when hovering or when user has already rated
+                              <div className={`rating-expand ${showRatingStars ? 'rating-active' : ''}`}>
+                                <span className="text-gray-400 mr-2">Your Rating:</span>
+                                <Rate 
+                                  value={userRating || 0} 
+                                  onChange={handleRateMovie} 
+                                  allowHalf
+                                  disabled={isRating || !isLoggedIn}
+                                  className="custom-rate"
+                                  tooltips={['Poor', 'Fair', 'Good', 'Very Good', 'Excellent']}
+                                />
+                                {isRating && <LoadingOutlined className="ml-2" />}
+                              </div>
+                            ) : (
+                              // Show single star icon when not hovering
+                              <div className="rating-collapsed">
+                                <StarOutlined className="rating-trigger" />
+                                <span className="ml-1 text-sm text-gray-400">Rate this</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       {anime.status && (
                         <div>
@@ -1153,7 +1337,9 @@ const AnimeDetail = () => {
                           </Button>
                           <Button
                             type="text"
-                            icon={isFavorite ? <HeartFilled style={{ color: '#EF4444' }} /> : <HeartOutlined />}
+                            icon={loadingFavorite ? 
+                              <LoadingOutlined /> : 
+                              (isFavorite ? <HeartFilled style={{ color: 'white' }} /> : <HeartOutlined style={{ color: 'white' }} />)}
                             style={{ color: 'white' }}
                             onClick={toggleFavorite}
                           >
@@ -1345,6 +1531,112 @@ const AnimeDetail = () => {
           .mt-8 .ant-btn {
             width: 100%;
             height: 40px !important;
+          }
+        }
+        
+        /* Custom rating stars styling */
+        .custom-rate .ant-rate-star {
+          cursor: pointer;
+          margin-right: 4px;
+          transition: transform 0.2s, color 0.2s;
+        }
+        
+        .custom-rate .ant-rate-star-first,
+        .custom-rate .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4); /* Lighter unfilled color */
+        }
+        
+        /* Fill stars on hover - this fills the entire star */
+        .custom-rate .ant-rate-star:hover .ant-rate-star-first,
+        .custom-rate .ant-rate-star:hover .ant-rate-star-second {
+          color: #F59E0B !important; /* Filled color on hover */
+        }
+        
+        /* Fill stars before the hovered one */
+        .custom-rate .ant-rate-star:hover ~ .ant-rate-star .ant-rate-star-first,
+        .custom-rate .ant-rate-star:hover ~ .ant-rate-star .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4) !important; /* Keep them unfilled */
+        }
+        
+        /* Half star hover effect */
+        .custom-rate .ant-rate-star:hover .ant-rate-star-first {
+          color: #F59E0B !important; /* Fill the first half on hover */
+        }
+        
+        /* Support for half-star rating */
+        .custom-rate .ant-rate-star-half:hover .ant-rate-star-first {
+          color: #F59E0B !important; /* Fill only the first half */
+        }
+        
+        .custom-rate .ant-rate-star-half:hover .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.4) !important; /* Keep second half unfilled */
+        }
+        
+        /* Keep the selected stars filled */
+        .custom-rate .ant-rate-star-full .ant-rate-star-first,
+        .custom-rate .ant-rate-star-full .ant-rate-star-second {
+          color: #FBBF24 !important; /* Bright gold for filled stars */
+        }
+        
+        /* Half star styling for selected */
+        .custom-rate .ant-rate-star-half .ant-rate-star-first {
+          color: #FBBF24 !important; /* Keep half stars filled */
+        }
+        
+        /* Enhanced hover effect for star ratings */
+        .custom-rate .ant-rate-star:hover {
+          transform: scale(1.4);
+          transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        
+        /* Rating hover effect */
+        .rating-container {
+          display: inline-block;
+        }
+        
+        .rating-collapsed {
+          cursor: pointer;
+          padding: 4px 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+          transition: all 0.2s ease;
+        }
+        
+        .rating-collapsed:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .rating-trigger {
+          color: #FBBF24;
+          font-size: 16px;
+          margin-right: 2px;
+        }
+        
+        .rating-expand {
+          background-color: rgba(31, 41, 55, 0.8);
+          border-radius: 4px;
+          padding: 4px 8px;
+          transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+          transform-origin: center bottom;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          display: flex;
+          align-items: center;
+        }
+        
+        .rating-active {
+          animation: pop-up 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        
+        @keyframes pop-up {
+          0% {
+            transform: scale(0.8);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
           }
         }
       `}</style>
