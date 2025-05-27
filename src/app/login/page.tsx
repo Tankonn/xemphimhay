@@ -76,7 +76,7 @@ export default function Login() {
           <div className="relative hidden md:block">
             <div className="absolute inset-0">
               <Image
-                src="/img/loginbanner.png" 
+                src="/xemphimhay/img/loginbanner.png" 
                 alt="Anime Banner"
                 layout="fill"
                 objectFit="cover"

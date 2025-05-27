@@ -348,7 +348,7 @@ const Home: NextPage = () => {
         description: film.description || 'Experience the adventure of a lifetime...',
         image: film.image.startsWith('http')
           ? film.image
-          : `/img/hero/hero-1.jpg` // Fallback image
+          : `/xemphimhay/img/hero/hero-1.jpg` // Fallback image
       }));
 
       setHeroFilms(heroData);
@@ -375,19 +375,19 @@ const Home: NextPage = () => {
           title: 'Fate / Stay Night: Unlimited Blade Works',
           category: 'Adventure',
           description: 'After 30 days of travel across the world...',
-          image: '/img/hero/hero-1.jpg'
+          image: '/xemphimhay/img/hero/hero-1.jpg'
         },
         {
           title: 'Demon Slayer: Kimetsu no Yaiba',
           category: 'Action',
           description: 'Tanjiro sets out to become a demon slayer to avenge his family...',
-          image: '/img/hero/hero-1.jpg'
+          image: '/xemphimhay/img/hero/hero-1.jpg'
         },
         {
           title: 'Attack on Titan: Final Season',
           category: 'Drama',
           description: 'The war for Paradis zeroes in on Shiganshina...',
-          image: '/img/hero/hero-1.jpg'
+          image: '/xemphimhay/img/hero/hero-1.jpg'
         }
       ];
 
@@ -446,13 +446,13 @@ const Home: NextPage = () => {
   const getImageUrl = (image?: string): string => {
     if (!image) {
       // Return a default image if the image is undefined or null
-      return '/img/anime/default-poster.jpg';
+      return '/xemphimhay/img/anime/default-poster.jpg';
     }
     
     if (image.startsWith('http')) {
       return image;
     } else {
-      return `/img/anime/${image}`;
+      return `/xemphimhay/img/anime/${image}`;
     }
   };
 

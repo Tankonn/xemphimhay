@@ -246,8 +246,8 @@ function AnimeDetailContent() {
       const mockAnime: Anime = {
         _id: id,
         name: 'Demon Slayer: Kimetsu no Yaiba',
-        image: '/img/anime/details-pic.jpg',
-        cover: '/img/anime/details-bg.jpg',
+        image: '/xemphimhay/img/anime/details-pic.jpg',
+        cover: '/xemphimhay/img/anime/details-bg.jpg',
         trailer: 'https://www.youtube.com/watch?v=VQGCKyvzIM4',
         description: 'Tanjiro Kamado\'s life changed forever when his family was slaughtered by demons, and his sister Nezuko was transformed into one. Now, he hunts demons as a member of the Demon Slayer Corps, seeking a way to turn his sister back into a human and avenge his family.',
         category: 'Action, Fantasy, Historical',
@@ -356,7 +356,7 @@ function AnimeDetailContent() {
       id: `ep-${i + 1}`,
       number: i + 1,
       title: `Episode ${i + 1}: ${i === 0 ? 'Cruelty' : i === 1 ? 'Trainer Sakonji Urokodaki' : i === 2 ? 'Sabito and Makomo' : `Adventure ${i + 1}`}`,
-      thumbnail: `/img/anime/episodes/ep-${(i % 5) + 1}.jpg`,
+      thumbnail: `/xemphimhay/img/anime/episodes/ep-${(i % 5) + 1}.jpg`,
       duration: '24:15',
       releaseDate: `2019-${Math.floor(i / 4) + 4}-${((i % 4) + 1) * 7}`,
       watched: i < 3
@@ -373,10 +373,10 @@ function AnimeDetailContent() {
   // Set mock related anime
   const setMockRelatedAnime = () => {
     const mockRelated: RelatedAnime[] = [
-      { id: '1', name: 'Attack on Titan', image: '/img/anime/related-1.jpg', category: 'Action', rating: 4.8 },
-      { id: '2', name: 'My Hero Academia', image: '/img/anime/related-2.jpg', category: 'Superhero', rating: 4.7 },
-      { id: '3', name: 'Jujutsu Kaisen', image: '/img/anime/related-3.jpg', category: 'Supernatural', rating: 4.9 },
-      { id: '4', name: 'Tokyo Revengers', image: '/img/anime/related-4.jpg', category: 'Action', rating: 4.6 }
+      { id: '1', name: 'Attack on Titan', image: '/xemphimhay/img/anime/related-1.jpg', category: 'Action', rating: 4.8 },
+      { id: '2', name: 'My Hero Academia', image: '/xemphimhay/img/anime/related-2.jpg', category: 'Superhero', rating: 4.7 },
+      { id: '3', name: 'Jujutsu Kaisen', image: '/xemphimhay/img/anime/related-3.jpg', category: 'Supernatural', rating: 4.9 },
+      { id: '4', name: 'Tokyo Revengers', image: '/xemphimhay/img/anime/related-4.jpg', category: 'Action', rating: 4.6 }
     ];
     
     setRelatedAnime(mockRelated);
@@ -388,7 +388,7 @@ function AnimeDetailContent() {
       {
         id: '1',
         username: 'animefan42',
-        avatar: '/img/user/avatar-1.jpg',
+        avatar: '/xemphimhay/img/user/avatar-1.jpg',
         rating: 5,
         comment: 'This has to be one of the best anime I\'ve ever watched. The animation quality is breathtaking, especially during the fight scenes. The story is compelling and emotional. Can\'t wait for the next season!',
         date: '2023-04-15',
@@ -398,7 +398,7 @@ function AnimeDetailContent() {
       {
         id: '2',
         username: 'otakulover',
-        avatar: '/img/user/avatar-2.jpg',
+        avatar: '/xemphimhay/img/user/avatar-2.jpg',
         rating: 4.5,
         comment: 'Great character development and beautiful animation. The music score is outstanding and really enhances the emotional impact of scenes. My only criticism is that some episodes feel a bit slow.',
         date: '2023-03-22',
@@ -408,7 +408,7 @@ function AnimeDetailContent() {
       {
         id: '3',
         username: 'samuraid',
-        avatar: '/img/user/avatar-3.jpg',
+        avatar: '/xemphimhay/img/user/avatar-3.jpg',
         rating: 5,
         comment: 'The fight choreography is on another level. Each battle feels unique and the animation is fluid. The story manages to balance action, humor, and emotional moments perfectly.',
         date: '2023-02-10',
@@ -730,13 +730,13 @@ function AnimeDetailContent() {
   const getImageUrl = (image?: string): string => {
     if (!image) {
       // Return a default image if the image is undefined or null
-      return '/img/anime/default-poster.jpg';
+      return '/xemphimhay/img/anime/default-poster.jpg';
     }
     
     if (image.startsWith('http')) {
       return image;
     } else {
-      return `/img/anime/${image}`;
+      return `/xemphimhay/img/anime/${image}`;
     }
   };
 

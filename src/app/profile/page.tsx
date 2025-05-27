@@ -138,7 +138,7 @@ const Profile: NextPage = () => {
         _id: userId,
         username: userData.username || 'anime_lover',
         email: userData.email || 'user@example.com',
-        profileImage: userData.profileImage || '/img/user/default-avatar.jpg',
+        profileImage: userData.profileImage || '/xemphimhay/img/user/default-avatar.jpg',
         bio: userData.bio || 'Anime enthusiast and collector. I love watching fantasy and action anime!',
         joinDate: userData.createdAt || new Date().toISOString(),
         watchedCount: userData.watchedCount || 0,
@@ -184,7 +184,7 @@ const Profile: NextPage = () => {
         _id: '1',
         username: 'anime_lover',
         email: 'user@example.com',
-        profileImage: '/img/user/default-avatar.jpg',
+        profileImage: '/xemphimhay/img/user/default-avatar.jpg',
         bio: 'Anime enthusiast and collector. I love watching fantasy and action anime!',
         joinDate: '2023-05-15',
         watchedCount: 45,
@@ -283,7 +283,7 @@ const Profile: NextPage = () => {
             _id: movieId, // Use the movie ID for linking
             movieId: movieId, // Store the actual movie ID
             name: movieData.name || item.movieName || 'Unknown Title',
-            image: movieData.image || item.image || '/img/anime/default-poster.jpg',
+            image: movieData.image || item.image || '/xemphimhay/img/anime/default-poster.jpg',
             category: movieData.category || item.category || '',
             episode: `Episode ${item.episodeNumber || '?'}`,
             isWatched: isWatched,
@@ -417,11 +417,11 @@ const Profile: NextPage = () => {
   const setMockData = () => {
     // Mock favorite movies
     const mockFavorites: Film[] = [
-      { _id: '1', name: 'Demon Slayer', image: '/img/anime/trending-1.jpg', category: 'Action', views: 12500, isFavorite: true, rating: 4.9 },
-      { _id: '2', name: 'Attack on Titan', image: '/img/anime/trending-2.jpg', category: 'Action', views: 9800, isFavorite: true, rating: 4.8 },
-      { _id: '3', name: 'My Hero Academia', image: '/img/anime/trending-3.jpg', category: 'Superhero', views: 8700, isFavorite: true, rating: 4.7 },
-      { _id: '4', name: 'Jujutsu Kaisen', image: '/img/anime/trending-4.jpg', category: 'Supernatural', views: 7600, isFavorite: true, rating: 4.9 },
-      { _id: '5', name: 'One Punch Man', image: '/img/anime/trending-5.jpg', category: 'Comedy', views: 6500, isFavorite: true, rating: 4.6 },
+      { _id: '1', name: 'Demon Slayer', image: '/xemphimhay/img/anime/trending-1.jpg', category: 'Action', views: 12500, isFavorite: true, rating: 4.9 },
+      { _id: '2', name: 'Attack on Titan', image: '/xemphimhay/img/anime/trending-2.jpg', category: 'Action', views: 9800, isFavorite: true, rating: 4.8 },
+      { _id: '3', name: 'My Hero Academia', image: '/xemphimhay/img/anime/trending-3.jpg', category: 'Superhero', views: 8700, isFavorite: true, rating: 4.7 },
+      { _id: '4', name: 'Jujutsu Kaisen', image: '/xemphimhay/img/anime/trending-4.jpg', category: 'Supernatural', views: 7600, isFavorite: true, rating: 4.9 },
+      { _id: '5', name: 'One Punch Man', image: '/xemphimhay/img/anime/trending-5.jpg', category: 'Comedy', views: 6500, isFavorite: true, rating: 4.6 },
     ];
 
     // Mock watch history
@@ -430,7 +430,7 @@ const Profile: NextPage = () => {
         _id: '6', 
         movieId: '6',
         name: 'Tokyo Revengers', 
-        image: '/img/anime/trending-6.jpg', 
+        image: '/xemphimhay/img/anime/trending-6.jpg', 
         category: 'Action', 
         isWatched: true, 
         episode: 'S1:E24',
@@ -443,7 +443,7 @@ const Profile: NextPage = () => {
         _id: '7', 
         movieId: '7',
         name: 'Chainsaw Man', 
-        image: '/img/anime/trending-7.jpg', 
+        image: '/xemphimhay/img/anime/trending-7.jpg', 
         category: 'Supernatural', 
         isWatched: true, 
         episode: 'S1:E12',
@@ -456,7 +456,7 @@ const Profile: NextPage = () => {
         _id: '8', 
         movieId: '8',
         name: 'Spy x Family', 
-        image: '/img/anime/trending-8.jpg', 
+        image: '/xemphimhay/img/anime/trending-8.jpg', 
         category: 'Comedy', 
         isWatched: false, 
         episode: 'S1:E25',
@@ -469,7 +469,7 @@ const Profile: NextPage = () => {
         _id: '4', 
         movieId: '4',
         name: 'Jujutsu Kaisen', 
-        image: '/img/anime/trending-4.jpg', 
+        image: '/xemphimhay/img/anime/trending-4.jpg', 
         category: 'Supernatural', 
         isWatched: true, 
         episode: 'S2:E8',
@@ -482,7 +482,7 @@ const Profile: NextPage = () => {
         _id: '9', 
         movieId: '9',
         name: 'Vinland Saga', 
-        image: '/img/anime/trending-9.jpg', 
+        image: '/xemphimhay/img/anime/trending-9.jpg', 
         category: 'Historical', 
         isWatched: false, 
         episode: 'S2:E12',
@@ -495,7 +495,7 @@ const Profile: NextPage = () => {
         _id: '10', 
         movieId: '10',
         name: 'Blue Lock', 
-        image: '/img/anime/trending-10.jpg', 
+        image: '/xemphimhay/img/anime/trending-10.jpg', 
         category: 'Sports', 
         isWatched: true, 
         episode: 'S1:E15',
@@ -792,13 +792,13 @@ const Profile: NextPage = () => {
   const getImageUrl = (image?: string): string => {
     if (!image) {
       // Return a default image if the image is undefined or null
-      return '/img/anime/default-poster.jpg';
+      return '/xemphimhay/img/anime/default-poster.jpg';
     }
     
     if (image.startsWith('http')) {
       return image;
     } else {
-      return `/img/anime/${image}`;
+      return `/xemphimhay/img/anime/${image}`;
     }
   };
 
@@ -808,10 +808,10 @@ const Profile: NextPage = () => {
       if (user.profileImage.startsWith('http')) {
         return user.profileImage;
       } else {
-        return `/img/user/${user.profileImage}`;
+        return `/xemphimhay/img/user/${user.profileImage}`;
       }
     }
-    return '/img/user/default-avatar.jpg';
+    return '/xemphimhay/img/user/default-avatar.jpg';
   };
 
   // Function to format date
@@ -1387,7 +1387,7 @@ const Profile: NextPage = () => {
                                 <div className="w-24 h-16 overflow-hidden rounded relative">
                                   <div
                                     className="h-full w-full bg-cover bg-center"
-                                    style={{ backgroundImage: `url(/img/anime/${rating.movieId.image})` }}
+                                    style={{ backgroundImage: `url(/xemphimhay/img/anime/${rating.movieId.image})` }}
                                   ></div>
                                   <div className="absolute bottom-0 right-0 bg-black bg-opacity-75 px-1 py-0.5 text-yellow-400 text-xs font-bold">
                                     ★ {rating.rating.toFixed(1)}

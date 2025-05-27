@@ -67,7 +67,7 @@ export default function Register() {
         <div className="relative hidden md:block">
           <div className="absolute inset-0">
             <Image
-              src="/img/loginbanner.png"
+              src="/xemphimhay/img/loginbanner.png"
               alt="Banner"
               layout="fill"
               objectFit="cover"
