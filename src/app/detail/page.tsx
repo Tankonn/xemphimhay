@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -91,7 +91,8 @@ interface RelatedAnime {
   rating?: number;
 }
 
-const AnimeDetail = () => {
+// Create a wrapper component that uses useSearchParams
+function AnimeDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const animeId = searchParams.get('id');
@@ -1672,6 +1673,19 @@ const AnimeDetail = () => {
       `}</style>
     </div>
   );
-};
+}
 
-export default AnimeDetail;
+// Main component that wraps content in Suspense
+export default function DetailPage() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="flex justify-center items-center min-h-screen bg-gray-900">
+          <Spin size="large" />
+        </div>
+      }
+    >
+      <AnimeDetailContent />
+    </Suspense>
+  );
+}

@@ -93,7 +93,9 @@ const Header = () => {
           setUsername('');
           setIsEditModalVisible(false);
           // First reload the page
-          window.location.href = '/login';
+          window.location.reload();
+          // Then redirect to login
+          router.push('/login');
         } else {
           throw new Error(data.message || 'Failed to update profile');
         }
@@ -115,7 +117,7 @@ const Header = () => {
     localStorage.removeItem('username');
     setIsLoggedIn(false);
     setUsername('');
-    router.push('/login');
+    window.location.reload();
   };
 
   return (

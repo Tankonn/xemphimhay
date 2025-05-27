@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": ""
+    "deploy": "next build && gh-pages -d out"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
