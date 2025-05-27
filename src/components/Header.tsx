@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Button, Dropdown, Modal, Form, Input, message, Avatar } from 'antd';
+import { Button, Modal, Form, Input, message, Avatar } from 'antd';
 import { LogoutOutlined, UserOutlined, LoginOutlined, EditOutlined, UserAddOutlined, MailOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 
@@ -19,22 +19,8 @@ const Header = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
 
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsLoggedIn(true);
-      const storedUsername = localStorage.getItem('username');
-      if (storedUsername) {
-        setUsername(storedUsername);
-      } else {
-        fetchUserProfile(token);
-      }
-    }
-  }, []);
-
-  // Function to fetch user profile
-  const fetchUserProfile = async (token: string) => {
+  // Memoize fetchUserProfile to use in useEffect
+  const fetchUserProfile = useCallback(async (token: string) => {
     try {
       const response = await fetch('http://localhost:2000/auth/profile', {
         headers: {
@@ -58,9 +44,22 @@ const Header = () => {
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setUsername('User');
-      
     }
-  };
+  }, [form]);
+
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    if (token) {
+      setIsLoggedIn(true);
+      const storedUsername = localStorage.getItem('username');
+      if (storedUsername) {
+        setUsername(storedUsername);
+      } else {
+        fetchUserProfile(token);
+      }
+    }
+  }, [fetchUserProfile]);
 
   // Function to handle profile update
   const handleProfileUpdate = async (values: UserProfile) => {
@@ -93,7 +92,6 @@ const Header = () => {
           setIsLoggedIn(false);
           setUsername('');
           setIsEditModalVisible(false);
-          
           // First reload the page
           window.location.href = '/login';
         } else {
@@ -119,28 +117,6 @@ const Header = () => {
     setUsername('');
     router.push('/login');
   };
-
-  // User dropdown menu items
-  const userMenu = [
-    {
-      key: 'profile',
-      label: <Link href="/profile" className="text-gray-200 hover:text-red-500 transition-colors">My Profile</Link>,
-      icon: <UserOutlined className="text-gray-400" />,
-    },
-    {
-      key: 'edit',
-      label: <span className="text-gray-200 hover:text-red-500 transition-colors">Edit Profile</span>,
-      icon: <EditOutlined className="text-gray-400" />,
-      onClick: () => setIsEditModalVisible(true),
-    },
-    {
-      key: 'logout',
-      label: <span className="text-gray-200 hover:text-red-500 transition-colors">Logout</span>,
-      icon: <LogoutOutlined className="text-gray-400" />,
-      onClick: handleLogout,
-      danger: true,
-    },
-  ];
 
   return (
     <header className="bg-gray-900 border-b border-gray-800">
