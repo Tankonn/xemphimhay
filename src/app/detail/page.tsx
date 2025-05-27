@@ -118,6 +118,10 @@ const AnimeDetail = () => {
   const [userRating, setUserRating] = useState<number | null>(null);
   const [isRating, setIsRating] = useState<boolean>(false);
   const [showRatingStars, setShowRatingStars] = useState<boolean>(false);
+  const [duplicateRatingModalVisible, setDuplicateRatingModalVisible] = useState<boolean>(false);
+  const [duplicateRatingValue, setDuplicateRatingValue] = useState<number>(0);
+  const [ratingErrorType, setRatingErrorType] = useState<'duplicate' | 'missing_id' | 'validation_error' | 'invalid_rating' | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
 
   useEffect(() => {
     // Check login status
@@ -765,6 +769,15 @@ const AnimeDetail = () => {
       return;
     }
 
+    // Check if it's the same rating as before
+    if (userRating === value) {
+      // Instead of proceeding with the API call, show the duplicate rating modal
+      setDuplicateRatingValue(value);
+      setRatingErrorType('duplicate');
+      setDuplicateRatingModalVisible(true);
+      return;
+    }
+
     // Get userId from localStorage
     const userId = localStorage.getItem('userId');
     if (!userId) {
@@ -834,12 +847,51 @@ const AnimeDetail = () => {
       }
     } catch (error) {
       console.error('Error rating movie:', error);
-      notification.error({
-        message: 'Rating Failed',
-        description: error instanceof Error ? error.message : 'Failed to submit rating',
-        placement: 'topRight',
-        duration: 3
-      });
+      
+      // If the user already has a rating, use that for the modal
+      const displayRating = userRating || value;
+      setDuplicateRatingValue(displayRating);
+      
+      // Extract error message
+      let errorMessage = 'Failed to submit rating';
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = error.message as string;
+      }
+      
+      // Check for different error types
+      const errorLower = errorMessage.toLowerCase();
+      
+      if (errorLower.includes('userid') || errorLower.includes('movieid')) {
+        // User ID or Movie ID issues
+        setRatingErrorType('missing_id');
+        notification.error({
+          message: 'Authentication Error',
+          description: 'User ID or Movie ID is missing or invalid. Please try logging in again.',
+          placement: 'topRight',
+          duration: 3
+        });
+      } else if (errorLower.includes('rating')) {
+        // Rating validation issues
+        setRatingErrorType('invalid_rating');
+        notification.error({
+          message: 'Invalid Rating',
+          description: 'Rating must be between 1 and 5 stars.',
+          placement: 'topRight',
+          duration: 3
+        });
+      } else {
+        // Other validation errors
+        setRatingErrorType('validation_error');
+        notification.error({
+          message: 'Rating Failed',
+          description: errorMessage,
+          placement: 'topRight',
+          duration: 3
+        });
+      }
+      
+      // Show the error modal
+      setDuplicateRatingModalVisible(true);
     } finally {
       setIsRating(false);
     }
@@ -959,90 +1011,68 @@ const AnimeDetail = () => {
         </div>
       </Modal>
 
-      {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Link href="/home" className="text-red-500 font-bold text-2xl">
-                ANIME
-              </Link>
-              <nav className="hidden md:flex ml-8">
-                <Link href="/home" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Home
-                </Link>
-                <Link href="/categories" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Categories
-                </Link>
-                <Link href="/blog" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Blog
-                </Link>
-                <Link href="/about" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  About
-                </Link>
-              </nav>
-            </div>
-            <div className="flex items-center">
-              {isLoggedIn ? (
-                <>
-                  <Dropdown menu={{ items: userMenu }} placement="bottomRight">
-                    <Button
-                      type="text"
-                      style={{ color: 'white' }}
-                      className="flex items-center"
-                    >
-                      <UserOutlined className="mr-1" /> {username || 'User'}
-                    </Button>
-                  </Dropdown>
-                  <Button
-                    type="primary"
-                    className="ml-4 flex items-center"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
-                    onClick={handleLogout}
-                    icon={<LogoutOutlined />}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    type="primary"
-                    className="ml-4"
-                    style={{ 
-                      backgroundColor: '#EF4444', 
-                      borderColor: '#EF4444',
-                      padding: '0 20px',
-                      height: '40px',
-                      borderRadius: '4px',
-                      borderWidth: '2px',
-                      fontWeight: 'bold'
-                    }}
-                    onClick={() => router.push('/login')}>
-                    Sign In
-                  </Button>
-                  <Button
-                    type="primary"
-                    className="ml-4"
-                    style={{ 
-                      backgroundColor: '#EF4444', 
-                      borderColor: '#EF4444',
-                      padding: '0 20px',
-                      height: '40px',
-                      borderRadius: '4px',
-                      borderWidth: '2px',
-                      fontWeight: 'bold'
-                    }}
-                    onClick={() => router.push('/register')}
-                  >
-                    Sign Up
-                  </Button>
-                </>
-              )}
-            </div>
+      {/* Duplicate/Error Rating Modal */}
+      <Modal
+        open={duplicateRatingModalVisible}
+        onCancel={() => setDuplicateRatingModalVisible(false)}
+        footer={[
+          <Button 
+            key="ok" 
+            type="primary" 
+            onClick={() => setDuplicateRatingModalVisible(false)}
+            style={{ 
+              backgroundColor: '#EF4444', 
+              borderColor: '#EF4444'
+            }}
+          >
+            OK
+          </Button>
+        ]}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <StarOutlined style={{ color: '#F59E0B', marginRight: '8px' }} /> Rating Issue
           </div>
+        }
+        centered
+        width={{ xs: '90%', sm: 400 }}
+        style={{ top: 100 }}
+        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.7)' } }}
+      >
+        <div className="text-center">
+          <Rate disabled value={duplicateRatingValue} className="mb-4 block mx-auto" />
+          
+          {ratingErrorType === 'duplicate' ? (
+            <>
+              <p>You've already rated this movie with {duplicateRatingValue} {duplicateRatingValue === 1 ? 'star' : 'stars'}.</p>
+              <p className="mt-2">Please choose a different rating if you want to change your review.</p>
+            </>
+          ) : ratingErrorType === 'missing_id' ? (
+            <>
+              <p>There was a problem with your user ID or movie ID when submitting the rating.</p>
+              <p className="mt-2">Please try logging out and back in to refresh your session.</p>
+            </>
+          ) : ratingErrorType === 'invalid_rating' ? (
+            <>
+              <p>The rating value you submitted was invalid.</p>
+              <p className="mt-2">Ratings must be between 1 and 5 stars.</p>
+            </>
+          ) : ratingErrorType === 'validation_error' ? (
+            <>
+              <p>You have just rated a movie with a rating of the same value</p>
+              {/* <p className="mt-2">Please try again with a valid rating (1-5 stars).</p> */}
+            </>
+          ) : (
+            <>
+              <p>An error occurred while submitting your rating.</p>
+              <p className="mt-2">Please try again later.</p>
+            </>
+          )}
+          
+          
         </div>
-      </header>
+      </Modal>
+
+      
 
       <main>
         {loading ? (
@@ -1173,7 +1203,7 @@ const AnimeDetail = () => {
                         <span className="text-gray-400 ml-1">
                           ({anime?.ratingCount ? (anime.ratingCount > 999 
                             ? `${(anime.ratingCount / 1000).toFixed(1)}k` 
-                            : anime.ratingCount) : '0'} {anime?.ratingCount === 1 ? 'rating' : 'ratings'})
+                            : anime.ratingCount) : '0'} {anime?.ratingCount === 1 ? 'rating' : 'user rated'})
                         </span>
                         
                         <div className="ml-4 flex items-center">

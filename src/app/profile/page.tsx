@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Card, Row, Col, Button, List, Typography, Spin, Tabs, Avatar, Modal, Form, Input, notification } from 'antd';
+import { Card, Row, Col, Button, List, Typography, Spin, Tabs, Avatar, Modal, Form, Input, notification, Rate } from 'antd';
 import { UserOutlined, EditOutlined, StarOutlined, ClockCircleOutlined, HeartOutlined, HeartFilled, EyeOutlined, LogoutOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { NextPage } from 'next';
 import { useRouter } from 'next/navigation';
@@ -50,6 +50,19 @@ interface RatingResponse {
   rating: number;
 }
 
+// Add a new interface for user ratings
+interface UserRating {
+  _id: string;
+  movieId: {
+    _id: string;
+    name: string;
+    image: string;
+    category?: string;
+  };
+  rating: number;
+  createdAt: string;
+}
+
 const Profile: NextPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [favorites, setFavorites] = useState<Film[]>([]);
@@ -67,6 +80,9 @@ const Profile: NextPage = () => {
   const [loadingFavorite, setLoadingFavorite] = useState<string | null>(null);
   const [form] = Form.useForm();
   const router = useRouter();
+  const [userRatings, setUserRatings] = useState<UserRating[]>([]);
+  const [loadingRatings, setLoadingRatings] = useState<boolean>(false);
+  const [ratingSortBy, setRatingSortBy] = useState<'recent' | 'highest' | 'lowest'>('recent');
 
   useEffect(() => {
     // Check if user is logged in
@@ -144,6 +160,14 @@ const Profile: NextPage = () => {
           console.error('Error in fetchWatchHistory:', histError);
           // Don't throw, continue with rendering
         }
+      }
+
+      // Add function to fetch user ratings
+      try {
+        await fetchUserRatings(token, userId);
+      } catch (ratingError) {
+        console.error('Error in fetchUserRatings:', ratingError);
+        // Don't throw, continue with other operations
       }
 
       setError(null);
@@ -302,6 +326,56 @@ const Profile: NextPage = () => {
       console.error('Error fetching watch history:', err);
       // Set empty watch history instead of calling setMockData
       setWatchHistory([]);
+    }
+  };
+
+  // Function to fetch user ratings
+  const fetchUserRatings = async (token: string, userId: string) => {
+    try {
+      setLoadingRatings(true);
+      const response = await fetch(`http://localhost:2000/movies/ratings/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('User ratings data:', responseData);
+        
+        // Extract the ratings array from the response
+        // The API returns { success: true, count: n, data: [...ratings] }
+        const ratingsArray = responseData.data || [];
+        
+        // Process the data to handle the API's response format
+        let processedRatings: UserRating[] = [];
+        
+        if (Array.isArray(ratingsArray)) {
+          processedRatings = ratingsArray.map(item => {
+            // Use the movie property which contains all movie details
+            const movieData = item.movie || {};
+            
+            return {
+              _id: item.ratingId || item._id,
+              movieId: {              _id: movieData._id || item.movieId,              name: movieData.name || 'Unknown Title',              image: movieData.image || 'default-poster.jpg',              category: movieData.category || ''            },
+              rating: item.rating,
+              createdAt: item.createdAt || new Date().toISOString()
+            };
+          });
+        }
+        
+        console.log('Processed ratings:', processedRatings);
+        setUserRatings(processedRatings);
+      } else {
+        console.error('Failed to fetch user ratings:', await response.text());
+        setUserRatings([]);
+      }
+    } catch (err) {
+      console.error('Error fetching user ratings:', err);
+      setUserRatings([]);
+    } finally {
+      setLoadingRatings(false);
     }
   };
 
@@ -718,7 +792,7 @@ const Profile: NextPage = () => {
   const getImageUrl = (image?: string): string => {
     if (!image) {
       // Return a default image if the image is undefined or null
-      return '/img/anime/boGia.jpg';
+      return '/img/anime/default-poster.jpg';
     }
     
     if (image.startsWith('http')) {
@@ -940,89 +1014,7 @@ const Profile: NextPage = () => {
         </div>
       </Modal>
 
-      <header className="bg-gray-900 border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Link href="/home" className="text-red-500 font-bold text-2xl">
-                ANIME
-              </Link>
-              <nav className="hidden md:flex ml-8">
-                <Link href="/home" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Home
-                </Link>
-                <Link href="/categories" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Categories
-                </Link>
-                <Link href="/blog" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  Blog
-                </Link>
-                <Link href="/about" className="text-gray-400 hover:text-red-500 px-4 py-2">
-                  About
-                </Link>
-              </nav>
-            </div>
-            <div className="flex items-center">
-              {isLoggedIn ? (
-                <>
-                  <Link href="/profile">
-                    <Button
-                      type="text"
-                      style={{ color: 'white' }}
-                      className="flex items-center"
-                    >
-                      <UserOutlined className="mr-1" /> {user?.username || 'User'}
-                    </Button>
-                  </Link>
-                  <Button
-                    type="primary"
-                    className="ml-4 flex items-center"
-                    style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
-                    onClick={handleLogout}
-                    icon={<LogoutOutlined />}
-                  >
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    type="primary"
-                    className="ml-4"
-                    style={{ 
-                      backgroundColor: '#EF4444', 
-                      borderColor: '#EF4444',
-                      padding: '0 20px',
-                      height: '40px',
-                      borderRadius: '4px',
-                      borderWidth: '1px',
-                      fontWeight: 'bold'
-                    }}
-                    onClick={() => router.push('/login')}>
-                    Sign In
-                  </Button>
-                  <Button
-                    type="primary"
-                    className="ml-8"
-                    style={{ 
-                      backgroundColor: '#EF4444', 
-                      borderColor: '#EF4444',
-                      padding: '0 20px',
-                      height: '40px',
-                      borderRadius: '4px',
-                      borderWidth: '1px',
-                      fontWeight: 'bold'
-                    }}
-                    onClick={() => router.push('/register')}
-                  >
-                    Sign Up
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+
 
       <main className="container mx-auto px-4 py-8">
         {loading ? (
@@ -1084,7 +1076,7 @@ const Profile: NextPage = () => {
                         </div>
                       </div>
                     </Col>
-                    <Col span={8} md={6}>
+                    {/* <Col span={8} md={6}>
                       <div className="flex items-center">
                         <EyeOutlined style={{ color: '#EF4444', marginRight: '0.5rem' }} />
                         <div>
@@ -1092,7 +1084,7 @@ const Profile: NextPage = () => {
                           <Text style={{ color: 'white' }}>{user?.watchedCount || 0} anime</Text>
                         </div>
                       </div>
-                    </Col>
+                    </Col> */}
                     <Col span={8} md={6}>
                       <div className="flex items-center">
                         <HeartFilled style={{ color: '#EF4444', marginRight: '0.5rem' }} />
@@ -1360,130 +1352,96 @@ const Profile: NextPage = () => {
                       />
                     )
                   )
-                }
+                },
+                {
+                  key: 'ratings',
+                  label: <span className="text-lg"><StarOutlined style={{ marginRight: '0.5rem' }} />My Ratings</span>,
+                  children: (
+                    loadingRatings ? (
+                      <div className="flex justify-center py-12">
+                        <Spin size="large" />
+                      </div>
+                    ) : userRatings.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-800 rounded-lg">
+                        <StarOutlined style={{ fontSize: '48px', color: '#4B5563', marginBottom: '1rem' }} />
+                        <Title level={4} style={{ color: '#9CA3AF' }}>No ratings yet</Title>
+                        <Paragraph style={{ color: '#6B7280' }}>
+                          Start rating anime to build your ratings collection!
+                        </Paragraph>
+                        <Button
+                          type="primary"
+                          style={{ backgroundColor: '#EF4444', borderColor: '#EF4444', marginTop: '1rem' }}
+                          onClick={() => router.push('/home')}
+                        >
+                          Browse Anime
+                        </Button>
+                      </div>
+                    ) : (
+                      <List
+                        itemLayout="horizontal"
+                        dataSource={userRatings}
+                        renderItem={rating => (
+                          <List.Item style={{ borderBottom: '1px solid #374151' }}>
+                            <List.Item.Meta
+                              avatar={
+                                <div className="w-24 h-16 overflow-hidden rounded relative">
+                                  <div
+                                    className="h-full w-full bg-cover bg-center"
+                                    style={{ backgroundImage: `url(/img/anime/${rating.movieId.image})` }}
+                                  ></div>
+                                  <div className="absolute bottom-0 right-0 bg-black bg-opacity-75 px-1 py-0.5 text-yellow-400 text-xs font-bold">
+                                    ★ {rating.rating.toFixed(1)}
+                                  </div>
+                                </div>
+                              }
+                              title={
+                                <Link href={`/detail?id=${rating.movieId._id}`} className="text-white hover:text-red-500 list-item-title">
+                                  {rating.movieId.name}
+                                </Link>
+                              }
+                              description={
+                                <div style={{ color: '#9CA3AF' }}>
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center mb-1">
+                                      <Rate 
+                                        disabled 
+                                        value={rating.rating} 
+                                        allowHalf 
+                                        className="custom-rate text-sm"
+                                      />
+                                      <span className="ml-2 text-yellow-500 font-bold">{rating.rating.toFixed(1)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span>{rating.movieId.category || 'Anime'}</span>
+                                      <span>Rated on {new Date(rating.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              }
+                            />
+                            <div className="flex space-x-2">
+                              <Button
+                                type="primary"
+                                style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}
+                                size="small"
+                                onClick={() => router.push(`/detail?id=${rating.movieId._id}`)}
+                              >
+                                View Details
+                              </Button>
+                            </div>
+                          </List.Item>
+                        )}
+                      />
+                    )
+                  )
+                },
               ]}
             />
-
-            {/* Edit Profile Modal */}
-            <Modal
-              title="Edit Profile"
-              open={editModalVisible}
-              onCancel={() => setEditModalVisible(false)}
-              footer={null}
-              className="profile-edit-modal"
-            >
-              <Form
-                form={form}
-                layout="vertical"
-                onFinish={handleProfileUpdate}
-                initialValues={{
-                  username: user?.username,
-                  email: user?.email,
-                  bio: user?.bio
-                }}
-              >
-                <Form.Item
-                  name="username"
-                  label="Username"
-                  rules={[{ required: true, message: 'Please enter your username' }]}
-                >
-                  <Input prefix={<UserOutlined />} placeholder="Username" />
-                </Form.Item>
-                <Form.Item
-                  name="email"
-                  label="Email"
-                  rules={[
-                    { required: true, message: 'Please enter your email' },
-                    { type: 'email', message: 'Please enter a valid email' }
-                  ]}
-                >
-                  <Input type="email" placeholder="Email" />
-                </Form.Item>
-                <Form.Item
-                  name="bio"
-                  label="Bio"
-                >
-                  <Input.TextArea rows={4} placeholder="Tell us about yourself and your anime preferences" />
-                </Form.Item>
-                <Form.Item>
-                  <div className="flex justify-end space-x-2">
-                    <Button onClick={() => setEditModalVisible(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="primary" htmlType="submit" style={{ backgroundColor: '#EF4444', borderColor: '#EF4444' }}>
-                      Save Changes
-                    </Button>
-                  </div>
-                </Form.Item>
-              </Form>
-            </Modal>
           </>
         )}
       </main>
 
-      <footer className="bg-gray-800 text-gray-400">
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h5 className="text-white text-lg font-medium mb-4">About Us</h5>
-              <p className="mb-4">
-                Anime website with popular and trending anime from around the world.
-                Discover your next favorite series!
-              </p>
-              <div className="flex space-x-2">
-                <Link href="#" className="text-gray-400 hover:text-white">
-                  <span className="sr-only">Facebook</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-                <Link href="#" className="text-gray-400 hover:text-white">
-                  <span className="sr-only">Instagram</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772 4.902 4.902 0 011.772-1.153c.636-.247 1.363-.416 2.427-.465C9.24 2.013 9.584 2 12 2s2.784.013 3.808.06c1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772 4.902 4.902 0 011.772-1.153c.636-.247 1.363-.416 2.427-.465C9.24 2.013 9.584 2 12 2z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-                <Link href="#" className="text-gray-400 hover:text-white">
-                  <span className="sr-only">Twitter</span>
-                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
-                  </svg>
-                </Link>
-              </div>
-            </div>
-            <div>
-              <h5 className="text-white text-lg font-medium mb-4">Quick Links</h5>
-              <ul className="space-y-2">
-                <li><Link href="/home" className="hover:text-white">Home</Link></li>
-                <li><Link href="/categories" className="hover:text-white">Categories</Link></li>
-                <li><Link href="/blog" className="hover:text-white">Blog</Link></li>
-                <li><Link href="/about" className="hover:text-white">About</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h5 className="text-white text-lg font-medium mb-4">Categories</h5>
-              <ul className="space-y-2">
-                <li><Link href="/categories/action" className="hover:text-white">Action</Link></li>
-                <li><Link href="/categories/romance" className="hover:text-white">Romance</Link></li>
-                <li><Link href="/categories/comedy" className="hover:text-white">Comedy</Link></li>
-                <li><Link href="/categories/fantasy" className="hover:text-white">Fantasy</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h5 className="text-white text-lg font-medium mb-4">Contact</h5>
-              <ul className="space-y-2">
-                <li>Email: info@animehub.com</li>
-                <li>Phone: (555) 123-4567</li>
-                <li>Address: 123 Anime Street</li>
-                <li>Tokyo, Japan 100-0001</li>
-              </ul>
-            </div>
-          </div>
-          <div style={{ borderTop: '1px solid #374151', marginTop: '2rem', paddingTop: '2rem' }} className="text-center">
-            <p>&copy; {new Date().getFullYear()} AnimeHub. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      
 
       <style jsx global>{`
         /* Custom styles */
@@ -1561,47 +1519,24 @@ const Profile: NextPage = () => {
         /* Rating styles */
         .ant-rate {
           color: #FBBF24;
+          font-size: 1rem;
         }
-        .ant-rate-star:not(:last-child) {
+        .ant-rate-star {
           margin-right: 4px;
         }
-        .ant-rate-disabled .ant-rate-star {
-          cursor: default;
-        }
-        .ant-rate-star-first, .ant-rate-star-second {
+        .ant-rate-star-first, 
+        .ant-rate-star-second {
           color: #FBBF24;
         }
-        .ant-rate-star-half .ant-rate-star-first, .ant-rate-star-full .ant-rate-star-second {
-          color: #FBBF24;
+                /* Half-star styling */        .ant-rate-star-half .ant-rate-star-first {          color: #FBBF24;          /* Add a subtle glow effect to half stars */          filter: drop-shadow(0 0 1px rgba(251, 191, 36, 0.5));        }                .ant-rate-star-full .ant-rate-star-second {          color: #FBBF24;        }
+        .ant-rate-star-zero .ant-rate-star-first,
+        .ant-rate-star-zero .ant-rate-star-second {
+          color: rgba(251, 191, 36, 0.3);
         }
         
-        /* Rating badge */
-        .rating-badge {
-          position: absolute;
-          bottom: 8px;
-          right: 8px;
-          background-color: rgba(0, 0, 0, 0.7);
-          padding: 2px 8px;
-          border-radius: 4px;
-          display: flex;
-          align-items: center;
-          min-width: 60px; /* Ensure enough space for count */
-          z-index: 5;
-        }
-        .rating-badge .star-icon {
-          color: #FBBF24;
-          margin-right: 4px;
-          flex-shrink: 0;
-        }
-        .rating-badge span {
-          color: #FBBF24;
-          font-weight: bold;
-          white-space: nowrap;
-        }
-        .rating-badge .text-xs {
-          font-size: 0.75rem;
-          color: #D1D5DB;
-          font-weight: normal;
+        /* Star sizes for custom-rate */
+        .custom-rate .ant-rate-star {
+          font-size: 16px;
         }
         
         /* Favorite button styles */
@@ -1641,16 +1576,6 @@ const Profile: NextPage = () => {
         }
 
         /* Custom rating stars styling */
-        .custom-rate .ant-rate-star {
-          margin-right: 4px;
-        }
-
-        .custom-rate .ant-rate-star-first,
-        .custom-rate .ant-rate-star-second {
-          color: #FBBF24;
-        }
-
-        /* Enhanced hover effect for star ratings */
         .custom-rate .ant-rate-star:not(.ant-rate-star-full):hover {
           transform: scale(1.4);
           transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
