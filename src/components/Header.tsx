@@ -22,7 +22,7 @@ const Header = () => {
   // Memoize fetchUserProfile to use in useEffect
   const fetchUserProfile = useCallback(async (token: string) => {
     try {
-      const response = await fetch('http://localhost:2000/auth/profile', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com//auth/profile', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -71,7 +71,7 @@ const Header = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:2000/users/profile', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com//users/profile', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

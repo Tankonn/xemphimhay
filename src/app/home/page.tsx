@@ -83,7 +83,7 @@ const Home: NextPage = () => {
   // Function to fetch user profile
   const fetchUserProfile = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:2000/auth/profile', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/auth/profile', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -170,7 +170,7 @@ const Home: NextPage = () => {
         }
       } else {
         // Add to favorites
-        const response = await fetch('http://localhost:2000/favorites', {
+        const response = await fetch('https://webxemphim-4vr4.onrender.com/favorites', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -237,7 +237,7 @@ const Home: NextPage = () => {
       const token = localStorage.getItem('token');
       
       // Remove from favorites
-      const response = await fetch(`http://localhost:2000/favorites/${filmToRemove.id}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/${filmToRemove.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -300,7 +300,7 @@ const Home: NextPage = () => {
       const currentUserId = localStorage.getItem('userId');
       console.log('Fetching favorites for user ID:', currentUserId);
       
-      const response = await fetch(`http://localhost:2000/favorites/user/${currentUserId}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/user/${currentUserId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -330,7 +330,7 @@ const Home: NextPage = () => {
       setLoading(true);
 
       // Replace with your actual API endpoint
-      const response = await fetch('http://localhost:2000/movies');
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/movies');
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -402,7 +402,7 @@ const Home: NextPage = () => {
     try {
       // Call the NestJS endpoint directly using the controller's "top" endpoint
       console.log('Fetching top viewed films...');
-      const response = await fetch('http://localhost:2000/movies/top?limit=5');
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/movies/top?limit=5');
       
       if (!response.ok) {
         console.error(`API error: ${response.status}`);
@@ -508,7 +508,7 @@ const Home: NextPage = () => {
     try {
       console.log(`Submitting rating ${value} for film ${filmId} by user ${userId}`);
       
-      const response = await fetch('http://localhost:2000/movies/rate', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/movies/rate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -810,9 +810,9 @@ const Home: NextPage = () => {
                 <div className="mb-12">
                   <div className="flex justify-between items-center mb-6">
                     <Title level={4} style={{ color: 'white', margin: 0 }}>Popular Anime</Title>
-                    <Link href="/all-anime" className="text-red-500 hover:text-red-600 flex items-center">
+                    {/* <Link href="/all-anime" className="text-red-500 hover:text-red-600 flex items-center">
                       View All <RightOutlined className="ml-1" />
-                    </Link>
+                    </Link> */}
                   </div>
                   {error && (
                     <div className="bg-red-500 bg-opacity-20 border border-red-500 text-white p-4 mb-6 rounded">

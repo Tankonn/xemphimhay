@@ -42,7 +42,7 @@ const Film: React.FC<FilmProps> = ({
     setIsRatingLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:2000/movies/rate', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com//movies/rate', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

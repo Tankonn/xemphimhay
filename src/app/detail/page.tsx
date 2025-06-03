@@ -229,7 +229,7 @@ function AnimeDetailContent() {
   const fetchAnimeDetails = async (id: string) => {
     try {
       // Replace with your actual API endpoint
-      const response = await fetch(`http://localhost:2000/movies/${id}`);
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/movies/${id}`);
       
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
@@ -271,7 +271,7 @@ function AnimeDetailContent() {
   const fetchEpisodes = async (id: string) => {
     try {
       // Replace with your actual API endpoint
-      const response = await fetch(`http://localhost:2000/episodes/${id}`);
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/episodes/${id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -290,7 +290,7 @@ function AnimeDetailContent() {
   const fetchRelatedAnime = async (id: string) => {
     try {
       // Replace with your actual API endpoint
-      const response = await fetch(`http://localhost:2000/movies/related/${id}`);
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/movies/related/${id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -309,7 +309,7 @@ function AnimeDetailContent() {
   const fetchReviews = async (id: string) => {
     try {
       // Replace with your actual API endpoint
-      const response = await fetch(`http://localhost:2000/reviews/${id}`);
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/reviews/${id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -331,7 +331,7 @@ function AnimeDetailContent() {
       if (!userId) return;
       
       // Replace with your actual API endpoint
-      const response = await fetch(`http://localhost:2000/favorites/user/${userId}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -446,7 +446,7 @@ function AnimeDetailContent() {
     try {
       if (isFavorite) {
         // Remove from favorites
-        const response = await fetch(`http://localhost:2000/favorites/${animeId}`, {
+        const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/${animeId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -464,7 +464,7 @@ function AnimeDetailContent() {
         }
       } else {
         // Add to favorites
-        const response = await fetch('http://localhost:2000/favorites', {
+        const response = await fetch('https://webxemphim-4vr4.onrender.com/favorites', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -547,7 +547,7 @@ function AnimeDetailContent() {
       };
       
       // Make API call to save watch history
-      const response = await fetch('http://localhost:2000/watch-history', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/watch-history', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -608,7 +608,7 @@ function AnimeDetailContent() {
       };
       
       // Make API call to update watch history progress
-      await fetch(`http://localhost:2000/watch-history/user/${userId}/movie/${animeId}`, {
+      await fetch(`https://webxemphim-4vr4.onrender.com/watch-history/user/${userId}/movie/${animeId}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -652,7 +652,7 @@ function AnimeDetailContent() {
     
     try {
       // Call the working endpoint based on the test file
-      const url = `http://localhost:2000/movies/add-view`;
+      const url = `https://webxemphim-4vr4.onrender.com/movies/add-view`;
       console.log(`Sending POST request to: ${url}`);
       
       const response = await fetch(url, {
@@ -795,7 +795,7 @@ function AnimeDetailContent() {
     try {
       console.log(`Submitting rating ${value} for movie ${animeId} by user ${userId}`);
       
-      const response = await fetch('http://localhost:2000/movies/rate', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/movies/rate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

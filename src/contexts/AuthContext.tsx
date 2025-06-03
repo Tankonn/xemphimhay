@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Verify token with your backend
-      const response = await fetch('http://localhost:2000/auth/verify-token', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com//auth/verify-token', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`

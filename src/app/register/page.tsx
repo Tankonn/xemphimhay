@@ -29,7 +29,7 @@ export default function Register() {
     }
 
     try {
-      const response = await fetch("http://localhost:2000/users", {
+      const response = await fetch("https://webxemphim-4vr4.onrender.com/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

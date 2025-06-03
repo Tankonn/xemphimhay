@@ -104,7 +104,7 @@ const Profile: NextPage = () => {
       console.log('Fetching user data with token:', token); // Debug log
 
       // Replace with your actual API endpoint
-      const response = await fetch('http://localhost:2000/auth/profile', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/auth/profile', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -215,7 +215,7 @@ const Profile: NextPage = () => {
       const id = userId || user?._id;
       console.log('Fetching favorites for user ID:', id);
 
-      const response = await fetch(`http://localhost:2000/favorites/user/${id}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/user/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -256,7 +256,7 @@ const Profile: NextPage = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:2000/watch-history/user/${userId}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/watch-history/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -333,7 +333,7 @@ const Profile: NextPage = () => {
   const fetchUserRatings = async (token: string, userId: string) => {
     try {
       setLoadingRatings(true);
-      const response = await fetch(`http://localhost:2000/movies/ratings/user/${userId}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/movies/ratings/user/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -535,7 +535,7 @@ const Profile: NextPage = () => {
       }
 
       // Replace with your actual API endpoint
-      const response = await fetch('http://localhost:2000/auth/update-profile', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/auth/update-profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -641,7 +641,7 @@ const Profile: NextPage = () => {
       const filmToAdd = watchHistory.find(f => f._id === movieId);
       console.log('Film data for add favorite:', filmToAdd);
 
-      const response = await fetch('http://localhost:2000/favorites', {
+      const response = await fetch('https://webxemphim-4vr4.onrender.com/favorites', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -739,7 +739,7 @@ const Profile: NextPage = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:2000/favorites/${filmToRemove._id}`, {
+      const response = await fetch(`https://webxemphim-4vr4.onrender.com/favorites/${filmToRemove._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
